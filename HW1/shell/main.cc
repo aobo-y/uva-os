@@ -6,19 +6,41 @@
 #include <sys/types.h>
 #include <unistd.h>
 #include <sys/wait.h>
+#include <regex>
+
+struct CommandObj {
+    std::vector<std::string> tokens;
+    std::string redirect_in;
+    std::string redirect_out;
+};
 
 void parse_and_run_command(const std::string &command) {
-    /* TODO: Implement this. */
-    /* Note that this is not the correct way to test for the exit command.
-       For example the command "   exit  " should also exit your shell.
-    */
+    // spacing the special shell token ">" "<" "|"
+    std::string format_cmd = std::regex_replace(command, std::regex("(>|<|\\|)"), " $1 ");
+    std::cout << format_cmd << "\n";
+    std::istringstream ss (format_cmd);
 
-    std::istringstream ss (command);
-    std::vector<std::string> tokens;
+    CommandObj cmd;
     std::string token;
 
     while (ss >> token) {
-        tokens.push_back(token);
+        if (token == "<") {
+            if (ss >> token && cmd.tokens.size() != 0) {
+                cmd.redirect_in = token;
+            } else {
+                std::cerr << "parsing error\n";
+                return;
+            }
+        } else if (token == ">") {
+            if (ss >> token && cmd.tokens.size() != 0) {
+                cmd.redirect_out = token;
+            } else {
+                std::cerr << "parsing error\n";
+                return;
+            }
+        } else {
+            cmd.tokens.push_back(token);
+        }
     }
 
     // std::cout << "received tokens: ";
@@ -34,19 +56,17 @@ void parse_and_run_command(const std::string &command) {
     pid_t pid = fork();
 
     if (pid < 0) {
-        std::cerr << "fork command error";
+        std::cerr << "fork command error\n";
         exit(1);
-    }
-    else if (pid == 0) {
+    } else if (pid == 0) {
         std::vector<char*> charTokens;
-        for (auto i = tokens.begin(); i != tokens.end(); i++) {
+        for (auto i = cmd.tokens.begin(); i != cmd.tokens.end(); i++) {
             char* str = &(*i)[0];
             charTokens.push_back(str);
         }
 
         execvp(charTokens[0], charTokens.data());
-    }
-    else {
+    } else {
         wait(NULL);
     }
 
