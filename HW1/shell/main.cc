@@ -7,6 +7,7 @@
 #include <unistd.h>
 #include <sys/wait.h>
 #include <regex>
+#include <fcntl.h>
 
 struct CommandObj {
     std::vector<std::string> tokens;
@@ -17,7 +18,6 @@ struct CommandObj {
 void parse_and_run_command(const std::string &command) {
     // spacing the special shell token ">" "<" "|"
     std::string format_cmd = std::regex_replace(command, std::regex("(>|<|\\|)"), " $1 ");
-    std::cout << format_cmd << "\n";
     std::istringstream ss (format_cmd);
 
     CommandObj cmd;
@@ -43,8 +43,8 @@ void parse_and_run_command(const std::string &command) {
         }
     }
 
-    // std::cout << "received tokens: ";
-    // for (auto i = tokens.begin(); i != tokens.end(); i++) {
+    // std::cout << "received tokens (" << cmd.tokens.size() << "):";
+    // for (auto i = cmd.tokens.begin(); i != cmd.tokens.end(); i++) {
     //     std::cout << *i << ", ";
     // }
     // std::cout << '\n';
@@ -63,6 +63,19 @@ void parse_and_run_command(const std::string &command) {
         for (auto i = cmd.tokens.begin(); i != cmd.tokens.end(); i++) {
             char* str = &(*i)[0];
             charTokens.push_back(str);
+        }
+        charTokens.push_back(NULL);
+
+        if (cmd.redirect_in != "") {
+            int in_f = open(cmd.redirect_in.c_str(), O_RDONLY);
+            // std::cout << "redirect in: " << cmd.redirect_in << " " << in_f << "\n";
+            dup2(in_f, STDIN_FILENO);
+        }
+
+        if (cmd.redirect_out != "") {
+            int out_f = open(cmd.redirect_out.c_str(), O_WRONLY | O_CREAT | O_TRUNC, S_IRUSR | S_IWUSR | S_IRGRP | S_IROTH);
+            // std::cout << "redirect out: " << cmd.redirect_out << " " << out_f << "\n";
+            dup2(out_f, STDOUT_FILENO);
         }
 
         execvp(charTokens[0], charTokens.data());
