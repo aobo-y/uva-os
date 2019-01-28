@@ -6,8 +6,9 @@
 #include <sys/types.h>
 #include <unistd.h>
 #include <sys/wait.h>
-#include <regex>
 #include <fcntl.h>
+#include <regex>
+#include <set>
 
 struct CommandObj {
     std::vector<std::string> tokens;
@@ -17,25 +18,30 @@ struct CommandObj {
 
 void parse_and_run_command(const std::string &command) {
     // spacing the special shell token ">" "<" "|"
-    std::string format_cmd = std::regex_replace(command, std::regex("(>|<|\\|)"), " $1 ");
+    // std::string format_cmd = std::regex_replace(command, std::regex("(>|<|\\|)"), " $1 ");
+
+    std::string format_cmd = command;
     std::istringstream ss (format_cmd);
 
     CommandObj cmd;
     std::string token;
+    std::set<std::string> special_chars ({">", "<", "|"});
 
     while (ss >> token) {
-        if (token == "<") {
-            if (ss >> token && cmd.tokens.size() != 0) {
-                cmd.redirect_in = token;
+        if (special_chars.count(token)) {
+            std::string target;
+
+            if (ss >> target && !special_chars.count(target) && cmd.tokens.size() != 0) {
+                if (token == "<") {
+                    cmd.redirect_in = target;
+                } else if (token == ">") {
+                    cmd.redirect_out = target;
+                } else {
+                    std::cerr << "Not implemented.\n";
+                    return;
+                }
             } else {
-                std::cerr << "parsing error\n";
-                return;
-            }
-        } else if (token == ">") {
-            if (ss >> token && cmd.tokens.size() != 0) {
-                cmd.redirect_out = token;
-            } else {
-                std::cerr << "parsing error\n";
+                std::cerr << "Invalid command\n";
                 return;
             }
         } else {
@@ -80,7 +86,9 @@ void parse_and_run_command(const std::string &command) {
 
         execvp(charTokens[0], charTokens.data());
     } else {
-        wait(NULL);
+        int status;
+        wait(&status);
+        std::cout << "> Exit status: " << status << "\n";
     }
 
     // std::cerr << "Not implemented.\n";
