@@ -11,6 +11,7 @@
 #include <set>
 
 struct CommandObj {
+    pid_t pid;
     std::vector<std::string> tokens;
     std::string redirect_in;
     std::string redirect_out;
@@ -94,12 +95,12 @@ void parse_and_run_command(const std::string &command) {
             cmd.pipe_to = pipefd[1];
         }
 
-        pid_t pid = fork();
+        cmd.pid = fork();
 
-        if (pid < 0) {
+        if (cmd.pid < 0) {
             std::cerr << "fork command error\n";
             exit(1);
-        } else if (pid == 0) {
+        } else if (cmd.pid == 0) {
             std::vector<char*> charTokens;
             for (auto i = cmd.tokens.begin(); i != cmd.tokens.end(); i++) {
                 char* str = &(*i)[0];
@@ -137,15 +138,14 @@ void parse_and_run_command(const std::string &command) {
             if (cmd.pipe_from) {
                 close(cmd.pipe_from);
             }
-
-            int status;
-            wait(&status);
-            std::cout << "> Exit status: " << WEXITSTATUS(status) << "\n";
         }
     }
 
-
-    // std::cerr << "Not implemented.\n";
+    for (auto cmdPtr = cmds.begin(); cmdPtr != cmds.end(); cmdPtr++) {
+        int status;
+        waitpid(cmdPtr->pid, &status, 0);
+        std::cout << "> Exit status: " << WEXITSTATUS(status) << "\n";
+    }
 }
 
 int main(void) {
