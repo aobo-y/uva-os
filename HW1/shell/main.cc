@@ -140,7 +140,7 @@ void parse_and_run_command(const std::string &command) {
 
             int status;
             wait(&status);
-            std::cout << "> Exit status: " << status << "\n";
+            std::cout << "> Exit status: " << WEXITSTATUS(status) << "\n";
         }
     }
 
