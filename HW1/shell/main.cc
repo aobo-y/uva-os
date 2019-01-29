@@ -25,13 +25,17 @@ void parse_and_run_command(const std::string &command) {
     std::string format_cmd = command;
     std::istringstream ss (format_cmd);
 
-    std::vector<CommandObj> cmds {CommandObj ()};
+    std::vector<CommandObj> cmds;
     // CommandObj cmd;
 
     std::string token;
     std::set<std::string> special_chars ({">", "<", "|"});
 
     while (ss >> token) {
+        if (!cmds.size()) {
+            cmds.push_back(CommandObj ());
+        }
+
         CommandObj& cmd = cmds.back();
 
         if (special_chars.count(token)) {
@@ -58,12 +62,17 @@ void parse_and_run_command(const std::string &command) {
         }
     }
 
-    std::cout << "received cmds (" << cmds.size() << "):";
+    // std::cout << "received cmds (" << cmds.size() << "):";
 
-    for (auto i = cmds.begin(); i != cmds.end(); i++) {
-        std::cout << i->tokens[0] << ", ";
+    // for (auto i = cmds.begin(); i != cmds.end(); i++) {
+    //     std::cout << i->tokens[0] << ", ";
+    // }
+    // std::cout << '\n';
+
+    if (!cmds.size()) {
+        std::cerr << "Invalid command\n";
+        return;
     }
-    std::cout << '\n';
 
     int pipefd[2];
 
