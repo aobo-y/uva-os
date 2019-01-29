@@ -65,11 +65,24 @@ void parse_and_run_command(const std::string &command) {
     }
     std::cout << '\n';
 
+    int pipefd[2];
+
     for (auto cmdPtr = cmds.begin(); cmdPtr != cmds.end(); cmdPtr++) {
         CommandObj cmd = *cmdPtr;
 
         if (cmd.tokens[0] == "exit") {
             exit(0);
+        }
+
+        if (cmd.pipe_from) {
+            cmd.pipe_from = pipefd[0];
+        }
+        if (cmd.pipe_to) {
+            if (pipe(pipefd) == -1) {
+                std::cerr << "create pipe error\n";
+                exit(1);
+            }
+            cmd.pipe_to = pipefd[1];
         }
 
         pid_t pid = fork();
@@ -97,8 +110,25 @@ void parse_and_run_command(const std::string &command) {
                 dup2(out_f, STDOUT_FILENO);
             }
 
+            if (cmd.pipe_from) {
+                // pipe_to has already been closed in main process of previous iteration
+                dup2(cmd.pipe_from, STDIN_FILENO);
+            }
+
+            if (cmd.pipe_to) {
+                close(pipefd[0]);
+                dup2(cmd.pipe_to, STDOUT_FILENO);
+            }
+
             execvp(charTokens[0], charTokens.data());
         } else {
+            if (cmd.pipe_to) {
+                close(cmd.pipe_to);
+            }
+            if (cmd.pipe_from) {
+                close(cmd.pipe_from);
+            }
+
             int status;
             wait(&status);
             std::cout << "> Exit status: " << status << "\n";
