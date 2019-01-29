@@ -65,6 +65,11 @@ void parse_and_run_command(const std::string &command) {
         }
     }
 
+    if (!cmds.size()) {
+        std::cerr << "Invalid command\n";
+        return;
+    }
+
     for (auto i = cmds.begin(); i != cmds.end(); i++) {
         if (!(i->tokens.size())) {
             std::cerr << "Invalid command\n";
@@ -75,7 +80,7 @@ void parse_and_run_command(const std::string &command) {
     int pipefd[2];
 
     for (auto cmdPtr = cmds.begin(); cmdPtr != cmds.end(); cmdPtr++) {
-        CommandObj cmd = *cmdPtr;
+        CommandObj& cmd = *cmdPtr;
 
         if (cmd.tokens[0] == "exit") {
             exit(0);
@@ -126,7 +131,6 @@ void parse_and_run_command(const std::string &command) {
                 close(pipefd[0]);
                 dup2(cmd.pipe_to, STDOUT_FILENO);
             }
-
             execvp(charTokens[0], charTokens.data());
             // std::cout << errno << " error num\n";
             exit(errno);
