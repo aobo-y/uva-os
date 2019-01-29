@@ -26,53 +26,50 @@ void parse_and_run_command(const std::string &command) {
     std::string format_cmd = command;
     std::istringstream ss (format_cmd);
 
-    std::vector<CommandObj> cmds;
-    // CommandObj cmd;
+    std::vector<CommandObj> cmds {CommandObj ()};
 
     std::string token;
     std::set<std::string> special_chars ({">", "<", "|"});
 
     while (ss >> token) {
-        if (!cmds.size()) {
-            cmds.push_back(CommandObj ());
-        }
-
         CommandObj& cmd = cmds.back();
 
-        if (special_chars.count(token)) {
+        if (token == "<") {
             std::string target;
-
-            if (ss >> target && !special_chars.count(target) && cmd.tokens.size() != 0) {
-                if (token == "<") {
-                    cmd.redirect_in = target;
-                } else if (token == ">") {
-                    cmd.redirect_out = target;
-                } else {
-                    cmd.pipe_to = 1;
-                    CommandObj new_cmd;
-                    new_cmd.tokens.push_back(target);
-                    new_cmd.pipe_from = 1;
-                    cmds.push_back(new_cmd);
-                }
-            } else {
+            if (!(ss >> target) || special_chars.count(target)) {
                 std::cerr << "Invalid command\n";
                 return;
             }
+
+            cmd.redirect_in = target;
+        } else if (token == ">") {
+            std::string target;
+            if (!(ss >> target) || special_chars.count(target)) {
+                std::cerr << "Invalid command\n";
+                return;
+            }
+
+            cmd.redirect_out = target;
+        } else if (token == "|") {
+            if (!cmd.tokens.size()) {
+                std::cerr << "Invalid command\n";
+                return;
+            }
+
+            cmd.pipe_to = 1;
+            CommandObj new_cmd;
+            new_cmd.pipe_from = 1;
+            cmds.push_back(new_cmd);
         } else {
             cmd.tokens.push_back(token);
         }
     }
 
-    // std::cout << "received cmds (" << cmds.size() << "):";
-
-    // for (auto i = cmds.begin(); i != cmds.end(); i++) {
-    //     std::cout << i->tokens[0] << ", ";
-    // }
-    // std::cout << '\n';
-
-    if (!cmds.size()) {
-        std::cerr << "Invalid command\n";
-        return;
+    for (auto i = cmds.begin(); i != cmds.end(); i++) {
+        if (!(i->tokens.size())) {
+            std::cerr << "Invalid command\n";
+            return;
+        }
     }
 
     int pipefd[2];
