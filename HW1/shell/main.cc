@@ -99,7 +99,7 @@ void parse_and_run_command(const std::string &command) {
 
         if (cmd.pid < 0) {
             std::cerr << "fork command error\n";
-            exit(1);
+            return;
         } else if (cmd.pid == 0) {
             std::vector<char*> charTokens;
             for (auto i = cmd.tokens.begin(); i != cmd.tokens.end(); i++) {
@@ -131,6 +131,8 @@ void parse_and_run_command(const std::string &command) {
             }
 
             execvp(charTokens[0], charTokens.data());
+            // std::cout << errno << " error num\n";
+            exit(errno);
         } else {
             if (cmd.pipe_to) {
                 close(cmd.pipe_to);
