@@ -131,8 +131,10 @@ void parse_and_run_command(const std::string &command) {
                 close(pipefd[0]);
                 dup2(cmd.pipe_to, STDOUT_FILENO);
             }
-            execvp(charTokens[0], charTokens.data());
-            // std::cout << errno << " error num\n";
+
+            execv(charTokens[0], charTokens.data());
+
+            std::cerr << "Cannot execute " << charTokens[0] << "\n";
             exit(errno);
         } else {
             if (cmd.pipe_to) {
