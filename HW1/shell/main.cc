@@ -65,11 +65,6 @@ void parse_and_run_command(const std::string &command) {
         }
     }
 
-    if (!cmds.size()) {
-        std::cerr << "Invalid command\n";
-        return;
-    }
-
     for (auto i = cmds.begin(); i != cmds.end(); i++) {
         if (!(i->tokens.size())) {
             std::cerr << "Invalid command\n";
