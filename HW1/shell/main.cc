@@ -36,7 +36,7 @@ void parse_and_run_command(const std::string &command) {
 
         if (token == "<") {
             std::string target;
-            if (!(ss >> target) || special_chars.count(target)) {
+            if (cmd.redirect_in != "" || !(ss >> target) || special_chars.count(target)) {
                 std::cerr << "Invalid command\n";
                 return;
             }
@@ -44,7 +44,7 @@ void parse_and_run_command(const std::string &command) {
             cmd.redirect_in = target;
         } else if (token == ">") {
             std::string target;
-            if (!(ss >> target) || special_chars.count(target)) {
+            if (cmd.redirect_out != "" || !(ss >> target) || special_chars.count(target)) {
                 std::cerr << "Invalid command\n";
                 return;
             }
