@@ -98,22 +98,21 @@ void parse_and_run_command(const std::string &command) {
             std::cerr << "fork command error\n";
             return;
         } else if (cmd.pid == 0) {
-            std::vector<char*> charTokens;
-            for (auto i = cmd.tokens.begin(); i != cmd.tokens.end(); i++) {
-                char* str = &(*i)[0];
-                charTokens.push_back(str);
-            }
-            charTokens.push_back(NULL);
-
             if (cmd.redirect_in != "") {
                 int in_f = open(cmd.redirect_in.c_str(), O_RDONLY);
-                // std::cout << "redirect in: " << cmd.redirect_in << " " << in_f << "\n";
+                if (in_f == -1) {
+                    std::cerr << "Cannot read file " << cmd.redirect_in << "\n";
+                    exit(errno);
+                }
                 dup2(in_f, STDIN_FILENO);
             }
 
             if (cmd.redirect_out != "") {
                 int out_f = open(cmd.redirect_out.c_str(), O_WRONLY | O_CREAT | O_TRUNC, S_IRUSR | S_IWUSR | S_IRGRP | S_IROTH);
-                // std::cout << "redirect out: " << cmd.redirect_out << " " << out_f << "\n";
+                if (out_f == -1) {
+                    std::cerr << "Cannot write file " << cmd.redirect_out << "\n";
+                    exit(errno);
+                }
                 dup2(out_f, STDOUT_FILENO);
             }
 
@@ -126,6 +125,13 @@ void parse_and_run_command(const std::string &command) {
                 close(pipefd[0]);
                 dup2(cmd.pipe_to, STDOUT_FILENO);
             }
+
+            std::vector<char*> charTokens;
+            for (auto i = cmd.tokens.begin(); i != cmd.tokens.end(); i++) {
+                char* str = &(*i)[0];
+                charTokens.push_back(str);
+            }
+            charTokens.push_back(NULL);
 
             execv(charTokens[0], charTokens.data());
 
