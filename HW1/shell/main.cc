@@ -98,6 +98,18 @@ void parse_and_run_command(const std::string &command) {
             std::cerr << "fork command error\n";
             return;
         } else if (cmd.pid == 0) {
+            if (cmd.pipe_from) {
+                // pipe_to has already been closed in main process of previous iteration
+                dup2(cmd.pipe_from, STDIN_FILENO);
+                close(cmd.pipe_from);
+            }
+
+            if (cmd.pipe_to) {
+                close(pipefd[0]);
+                dup2(cmd.pipe_to, STDOUT_FILENO);
+                close(cmd.pipe_to);
+            }
+
             if (cmd.redirect_in != "") {
                 int in_f = open(cmd.redirect_in.c_str(), O_RDONLY);
                 if (in_f == -1) {
@@ -114,16 +126,6 @@ void parse_and_run_command(const std::string &command) {
                     exit(errno);
                 }
                 dup2(out_f, STDOUT_FILENO);
-            }
-
-            if (cmd.pipe_from) {
-                // pipe_to has already been closed in main process of previous iteration
-                dup2(cmd.pipe_from, STDIN_FILENO);
-            }
-
-            if (cmd.pipe_to) {
-                close(pipefd[0]);
-                dup2(cmd.pipe_to, STDOUT_FILENO);
             }
 
             std::vector<char*> charTokens;
