@@ -86,8 +86,8 @@ void parse_and_run_command(const std::string &command) {
         }
         if (cmd.pipe_to) {
             if (pipe(pipefd) == -1) {
-                std::cerr << "create pipe error\n";
-                exit(1);
+                perror("Create pipe error");
+                return;
             }
             cmd.pipe_to = pipefd[1];
         }
@@ -95,7 +95,7 @@ void parse_and_run_command(const std::string &command) {
         cmd.pid = fork();
 
         if (cmd.pid < 0) {
-            std::cerr << "fork command error\n";
+            perror("Fork command error");
             return;
         } else if (cmd.pid == 0) {
             if (cmd.pipe_from) {
@@ -113,8 +113,8 @@ void parse_and_run_command(const std::string &command) {
             if (cmd.redirect_in != "") {
                 int in_f = open(cmd.redirect_in.c_str(), O_RDONLY);
                 if (in_f == -1) {
-                    std::cerr << "Cannot read file " << cmd.redirect_in << "\n";
-                    exit(errno);
+                    perror(("Cannot reading file " + cmd.redirect_in).c_str());
+                    exit(1);
                 }
                 dup2(in_f, STDIN_FILENO);
             }
@@ -122,8 +122,8 @@ void parse_and_run_command(const std::string &command) {
             if (cmd.redirect_out != "") {
                 int out_f = open(cmd.redirect_out.c_str(), O_WRONLY | O_CREAT | O_TRUNC, S_IRUSR | S_IWUSR | S_IRGRP | S_IROTH);
                 if (out_f == -1) {
-                    std::cerr << "Cannot write file " << cmd.redirect_out << "\n";
-                    exit(errno);
+                    perror(("Cannot writing file " + cmd.redirect_out).c_str());
+                    exit(1);
                 }
                 dup2(out_f, STDOUT_FILENO);
             }
@@ -137,8 +137,8 @@ void parse_and_run_command(const std::string &command) {
 
             execv(charTokens[0], charTokens.data());
 
-            std::cerr << "Cannot execute " << charTokens[0] << "\n";
-            exit(errno);
+            perror(("Cannot execute " + cmd.tokens[0]).c_str());
+            exit(1);
         } else {
             if (cmd.pipe_to) {
                 close(cmd.pipe_to);
