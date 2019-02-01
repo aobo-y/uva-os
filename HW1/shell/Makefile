@@ -14,6 +14,6 @@ test: msh
 
 archive:
 	rm -f shell-archive.tgz
-	tar --exclude=shell-archive.tgz --exclude=msh --exclude=.git "--exclude=*.o" -zcvf shell-archive.tgz *
+	tar --exclude=shell-archive.tgz --exclude=msh --exclude=.git "--exclude=*.o" --exclude=README.md  -zcvf shell-archive.tgz *
 
 .PHONY: clean all test archive
