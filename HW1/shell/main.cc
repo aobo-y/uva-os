@@ -95,6 +95,15 @@ void parse_and_run_command(const std::string &command) {
         cmd.pid = fork();
 
         if (cmd.pid < 0) {
+            // clean pipe fd if any
+            if (cmd.pipe_from) {
+                close(cmd.pipe_from);
+            }
+            if (cmd.pipe_to) {
+                close(pipefd[0]);
+                close(pipefd[1]);
+            }
+
             perror("Fork command error");
             return;
         } else if (cmd.pid == 0) {
