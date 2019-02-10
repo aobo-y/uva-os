@@ -2,7 +2,41 @@
 // #include <cstdlib>
 #include <iostream>
 #include <vector>
+#include <semaphore.h>
 
+struct Barrier {
+    sem_t mutex;
+    sem_t waitq;
+    sem_t handshake;
+    int count = 0;
+    int max_count;
+
+    Barrier(int num) {
+        max_count = num;
+
+        sem_init(&mutex, 0, 1);
+        sem_init(&waitq, 0, 0);
+        sem_init(&handshake, 0, 0);
+    }
+
+    void wait() {
+        sem_wait(&mutex);
+
+        if (++count < max_count) {
+            sem_post(&mutex);
+
+            sem_wait(&waitq);
+            sem_post(&handshake);
+        } else {
+            for (count--; count > 0; count--) {
+                sem_post(&mutex);
+                sem_wait(&handshake);
+            }
+
+            sem_post(&mutex);
+        }
+    }
+};
 
 int main(void) {
     std::string input;
