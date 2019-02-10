@@ -1,5 +1,5 @@
 CXX = g++
-CXXFLAGS = -Wall -pedantic -O2 -g -std=c++11
+CXXFLAGS = -Wall -pedantic -O2 -g -std=c++11 -pthread
 
 all: max
 

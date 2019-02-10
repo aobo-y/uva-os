@@ -1,9 +1,9 @@
 #include <string>
-// #include <cstdlib>
 #include <iostream>
 #include <vector>
 #include <semaphore.h>
 #include <pthread.h>
+#include <math.h>
 
 struct Barrier {
     sem_t mutex;
@@ -30,7 +30,7 @@ struct Barrier {
             sem_post(&handshake);
         } else {
             for (count--; count > 0; count--) {
-                sem_post(&mutex);
+                sem_post(&waitq);
                 sem_wait(&handshake);
             }
 
@@ -42,12 +42,37 @@ struct Barrier {
 struct CompareArgs {
     std::vector<float> *numbers;
     int idx;
+    Barrier *barrier;
+    int iterations;
 };
 
 void *compare(void *param)  {
     CompareArgs *args = (CompareArgs*)param;
+    std::vector<float> &numbers = *(args->numbers);
+    Barrier &barrier = *(args->barrier);
 
-    std::cout << "t idx: " << std::to_string(args->idx) + "\n";
+    int idx_1 = 2 * args->idx;
+    int idx_2 = idx_1 + 1;
+
+    for (int i = 0; i < args->iterations; i++) {
+        // if idx_1 is already out of range, skip
+        // when idx_1 in range but idx_2 out, simply skip and leave idx_1 there
+        if (idx_2 < numbers.size()) {
+            int num_1 = numbers[idx_1];
+            int num_2 = numbers[idx_2];
+
+            // write max number to idx_1
+            numbers[idx_1] = num_1 > num_2 ? num_1 : num_2;
+        }
+
+        barrier.wait();
+
+        // after each iteration, the thread should take care another range
+        idx_1 *= 2;
+        idx_2 *= 2;
+    }
+
+    return 0;
 }
 
 int main(void) {
@@ -70,16 +95,22 @@ int main(void) {
         }
     }
 
-    int thread_num = numbers.size() / 2;
+    int thread_num = (numbers.size() + 1) / 2; // ceiling for odd size
     pthread_t tids[thread_num];
     pthread_attr_t attr;
     CompareArgs args_list[thread_num];
+
+    int iterations = ceil(log2(numbers.size()));
+    Barrier barrier (thread_num);
 
     pthread_attr_init(&attr);
 
     for (int i = 0; i < thread_num; i++) {
         args_list[i].numbers = &numbers;
         args_list[i].idx = i;
+        args_list[i].barrier = &barrier;
+        args_list[i].iterations = iterations;
+
         pthread_create(&tids[i], &attr, compare, &args_list[i]);
     }
 
