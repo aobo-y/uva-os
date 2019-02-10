@@ -3,6 +3,7 @@
 #include <iostream>
 #include <vector>
 #include <semaphore.h>
+#include <pthread.h>
 
 struct Barrier {
     sem_t mutex;
@@ -38,6 +39,17 @@ struct Barrier {
     }
 };
 
+struct CompareArgs {
+    std::vector<float> *numbers;
+    int idx;
+};
+
+void *compare(void *param)  {
+    CompareArgs *args = (CompareArgs*)param;
+
+    std::cout << "t idx: " << std::to_string(args->idx) + "\n";
+}
+
 int main(void) {
     std::string input;
     std::vector<float> numbers;
@@ -57,6 +69,26 @@ int main(void) {
             continue;
         }
     }
+
+    int thread_num = numbers.size() / 2;
+    pthread_t tids[thread_num];
+    pthread_attr_t attr;
+    CompareArgs args_list[thread_num];
+
+    pthread_attr_init(&attr);
+
+    for (int i = 0; i < thread_num; i++) {
+        args_list[i].numbers = &numbers;
+        args_list[i].idx = i;
+        pthread_create(&tids[i], &attr, compare, &args_list[i]);
+    }
+
+
+    for (int i = 0; i < thread_num; i++) {
+        pthread_join(tids[i], NULL);
+    }
+
+    std::cout << "max number: " << numbers[0] << "\n";
 
     // for (auto f = numbers.begin(); f != numbers.end(); f++) {
     //     std::cout << *f << " ";
