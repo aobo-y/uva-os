@@ -58,8 +58,8 @@ void *compare(void *param)  {
         // if idx_1 is already out of range, skip
         // when idx_1 in range but idx_2 out, simply skip and leave idx_1 there
         if (idx_2 < numbers.size()) {
-            int num_1 = numbers[idx_1];
-            int num_2 = numbers[idx_2];
+            float num_1 = numbers[idx_1];
+            float num_2 = numbers[idx_2];
 
             // write max number to idx_1
             numbers[idx_1] = num_1 > num_2 ? num_1 : num_2;
