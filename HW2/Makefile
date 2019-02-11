@@ -11,6 +11,6 @@ clean:
 
 archive:
 	rm -f max-archive.tgz
-	tar --exclude=max-archive.tgz --exclude=max --exclude=.git "--exclude=*.o" --exclude=README.md  -zcvf max-archive.tgz *
+	tar --exclude=max-archive.tgz --exclude=max --exclude=.git "--exclude=*.o" --exclude=README.md --exclude=test.txt -zcvf max-archive.tgz *
 
 .PHONY: clean all test archive
