@@ -9,8 +9,8 @@ struct Barrier {
     sem_t mutex;
     sem_t waitq;
     sem_t handshake;
-    int count = 0;
-    int max_count;
+    unsigned int count = 0;
+    unsigned int max_count;
 
     Barrier(int num) {
         max_count = num;
@@ -40,26 +40,26 @@ struct Barrier {
 };
 
 struct CompareArgs {
-    std::vector<float> *numbers;
-    int idx;
+    std::vector<double> *numbers;
+    unsigned int idx;
     Barrier *barrier;
-    int iterations;
+    unsigned int iterations;
 };
 
 void *compare(void *param)  {
     CompareArgs *args = (CompareArgs*)param;
-    std::vector<float> &numbers = *(args->numbers);
+    std::vector<double> &numbers = *(args->numbers);
     Barrier &barrier = *(args->barrier);
 
-    int idx_1 = 2 * args->idx;
-    int idx_2 = idx_1 + 1;
+    unsigned int idx_1 = 2 * args->idx;
+    unsigned int idx_2 = idx_1 + 1;
 
-    for (int i = 0; i < args->iterations; i++) {
+    for (unsigned int i = 0; i < args->iterations; i++) {
         // if idx_1 is already out of range, skip
         // when idx_1 in range but idx_2 out, simply skip and leave idx_1 there
         if (idx_2 < numbers.size()) {
-            float num_1 = numbers[idx_1];
-            float num_2 = numbers[idx_2];
+            double num_1 = numbers[idx_1];
+            double num_2 = numbers[idx_2];
 
             // write max number to idx_1
             numbers[idx_1] = num_1 > num_2 ? num_1 : num_2;
@@ -77,7 +77,7 @@ void *compare(void *param)  {
 
 int main(void) {
     std::string input;
-    std::vector<float> numbers;
+    std::vector<double> numbers;
 
     while (true) {
         std::getline(std::cin, input);
@@ -87,7 +87,7 @@ int main(void) {
         }
 
         try {
-            float num = std::stof(input);
+            double num = std::stof(input);
             numbers.push_back(num);
         } catch (std::exception& e) {
             std::cerr << "invalid input; exception: " << e.what() << '\n';
@@ -95,17 +95,17 @@ int main(void) {
         }
     }
 
-    int thread_num = (numbers.size() + 1) / 2; // ceiling for odd size
-    pthread_t tids[thread_num];
+    unsigned int thread_num = (numbers.size() + 1) / 2; // ceiling for odd size
+    std::vector<pthread_t> tids (thread_num);
     pthread_attr_t attr;
-    CompareArgs args_list[thread_num];
+    std::vector<CompareArgs> args_list (thread_num);
 
-    int iterations = ceil(log2(numbers.size()));
+    unsigned int iterations = ceil(log2(numbers.size()));
     Barrier barrier (thread_num);
 
     pthread_attr_init(&attr);
 
-    for (int i = 0; i < thread_num; i++) {
+    for (unsigned int i = 0; i < thread_num; i++) {
         args_list[i].numbers = &numbers;
         args_list[i].idx = i;
         args_list[i].barrier = &barrier;
@@ -115,7 +115,7 @@ int main(void) {
     }
 
 
-    for (int i = 0; i < thread_num; i++) {
+    for (unsigned int i = 0; i < thread_num; i++) {
         pthread_join(tids[i], NULL);
     }
 
