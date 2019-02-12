@@ -40,4 +40,8 @@ The program uses a vector to store the input number and pass it to all worker th
 
 Every worker thread has a unique identity `idx` from `1` to `N/2`. It is used to assign the initial number indexes, `idx_1` and `idx_2`, of the vector. After each comparison, the thread writes the larger number  back into `idx_1` of the same vector. Then the thread multiply the number indexes by two to compare the largest number of a wider range. For example, in the first first iteration, thread 0 shall compare the number at index 0 and 1, and write the larger number back to 0, while thread 1 shall writes the larger number of index 2 and 3 back to 2. Then in the second iteration, thread 0 shall compare number at 0 and 2, which stands for the largest number in range 0-1 and 2-3, and write the larger one to 0 as well. After the entire vector is covered by thread 0, the largest number should be at index 0.
 
+## Results
+
+The program fulfills the requirements. In addition, it supports decimal input and arbitrary number of inputs without the restrain of power-of-two. Invalid input is also handled.
+
 
