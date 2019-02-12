@@ -95,7 +95,7 @@ int main(void) {
         }
     }
 
-    unsigned int thread_num = (numbers.size() + 1) / 2; // ceiling for odd size
+    unsigned int thread_num = numbers.size() / 2; // floor for odd size
     std::vector<pthread_t> tids (thread_num);
     pthread_attr_t attr;
     std::vector<CompareArgs> args_list (thread_num);
