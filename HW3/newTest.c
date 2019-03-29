@@ -259,7 +259,7 @@ unsigned char *readFile(int fd, int numbytes, int offset){
   }
   unsigned char *buf = (unsigned char *)malloc(numbytes*sizeof(unsigned char));
   //buf[0] = '\0';
-  int bytesRead = FAT_read(fd, buf, numbytes, offset);
+  int bytesRead = FAT_pread(fd, buf, numbytes, offset);
   printf("Reading %d bytes from file %d starting from offset %d\n", bytesRead, fd, offset);
   return buf;
 }
@@ -273,7 +273,7 @@ unsigned char *copyFile(char *name, int numbytes, int offset){
   }
   unsigned char *buf = (unsigned char *)malloc(numbytes*sizeof(unsigned char));
   //buf[0] = '\0';
-  int bytesRead = FAT_read(fd, buf, numbytes, offset);
+  int bytesRead = FAT_pread(fd, buf, numbytes, offset);
   printf("Reading %d bytes from file %s starting from offset %d\n", bytesRead, name, offset);
   return buf;
 }
