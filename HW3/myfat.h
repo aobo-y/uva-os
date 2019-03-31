@@ -1,5 +1,7 @@
-#fndef __MYFAT_H__
+#ifndef __MYFAT_H__
 #define __MYFAT_H__
+
+#include <stdbool.h>
 
 typedef struct __attribute__ ((packed)) {
     uint8_t bs_jmpBoot[3];          // jmp instr to boot code
@@ -47,6 +49,11 @@ typedef struct __attribute__ ((packed)) {
 } dirEnt;
 
 
+#ifdef __cplusplus
+extern "C"
+{
+#endif
+
 extern int FAT_cd(const char *path);
 extern int FAT_open(const char *path);
 extern int FAT_close(int fd);
@@ -56,5 +63,9 @@ extern bool FAT_mount(const char *path);
 
 //extern char *CWD;          // current working dir name
 //int fdCount; 
+
+#ifdef __cplusplus
+} // extern "C"
+#endif
 
 #endif
