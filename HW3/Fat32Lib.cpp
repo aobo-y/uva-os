@@ -14,20 +14,20 @@ int FirstDataSector;
 uint32_t *FAT;
 std::vector<dirEnt> cwd_ents;
 
-int read_sector(int sec_num, int size, void* buf) {
+bool read_sector(int sec_num, int size, void* buf) {
     if (lseek(ifd, sec_num * bpb.bpb_bytesPerSec, SEEK_SET) == -1) {
-        return -1;
+        return 0;
     }
 
     std::cout << "set head to " << sec_num * bpb.bpb_bytesPerSec << "\n";
     if (read(ifd, buf, size) == -1) {
-        return -1;
+        return 0;
     }
 
     return size;
 }
 
-int read_cluster(int cluster_num, int size, void* buf) {
+bool read_cluster(int cluster_num, int size, void* buf) {
     int sec_num = FirstDataSector + (cluster_num - 2) * bpb.bpb_secPerClus;
 
     return read_sector(sec_num, size, buf);
@@ -55,10 +55,13 @@ std::vector<dirEnt> read_dir_cluster(uint32_t cluster_num) {
     uint8_t *ptr = (uint8_t *) dirEnt_list.data();
     for (auto const& cn: clusters) {
         std::cout << cn << " cluster num\n";
-        read_cluster(cn, cluster_bytes, ptr);
+        if (!read_cluster(cn, cluster_bytes, ptr)) {
+            std::cerr << "Failed to read cluster:" << std::strerror(errno) << "\n";
+            break;
+        }
         ptr += cluster_bytes;
     }
-    
+
     return dirEnt_list;
 }
 
@@ -66,12 +69,12 @@ bool FAT_mount(const char *path) {
     ifd = open(path, O_RDWR);
     if (ifd == -1) {
         std::cerr << "Failed to open raw image:" << std::strerror(errno) << "\n";
-        return -1;
+        return 0;
     }
 
     if (read(ifd, &bpb, sizeof(bpbFat32)) == -1) {
         std::cerr << "Failed to read bdp:" << std::strerror(errno) << "\n";
-        return -1;
+        return 0;
     }
 
     std::cout << bpb.bpb_FATSz32<< "\n";
@@ -86,7 +89,7 @@ bool FAT_mount(const char *path) {
     int CountofClusters = DataSec / bpb.bpb_secPerClus;
     if (CountofClusters < 65525) {
         std::cerr << "Invalid Fat32 cluster number:" << CountofClusters << "\n";
-        return -1;
+        return 0;
     }
 
 
@@ -96,7 +99,10 @@ bool FAT_mount(const char *path) {
 
     int FATBytes = FATSz * bpb.bpb_bytesPerSec;
     FAT = (uint32_t *) malloc(FATBytes);
-    read_sector(bpb.bpb_rsvdSecCnt, FATBytes, FAT);
+    if (!read_sector(bpb.bpb_rsvdSecCnt, FATBytes, FAT)) {
+        std::cerr << "Failed to read FAT\n";
+        return 0;
+    }
 
     // std::cout << "FAT entry count: " << (FATBytes / sizeof(uint32_t)) << "\n";
 
