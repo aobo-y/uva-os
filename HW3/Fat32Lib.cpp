@@ -97,13 +97,18 @@ std::vector<std::string> tokenize_path(const char *path) {
     return tokens;
 }
 
-// return the first cluster number for a given file name in a vector of dirEnts
-// return 0 if cannot find the filename
-uint32_t get_cluster_num(std::vector<dirEnt>& dir_ents, std::string token) {
+// format the first cluster number of a dirEnt
+uint32_t get_cluster_num(dirEnt& ent) {
+    return (ent.dir_fstClusHI << 8) | ent.dir_fstClusLO;
+}
+
+// return the dirEnt for a given file name in a vector of dirEnts
+// return NULL if cannot find the filename
+dirEnt* get_dirEnt_by_name(std::vector<dirEnt>& dir_ents, std::string token) {
     std::string name;
     int j;
 
-    for (auto ent: dir_ents) {
+    for (auto& ent: dir_ents) {
         if (ent.dir_name[0] == 0xE5) {
             continue;
         }
@@ -119,14 +124,13 @@ uint32_t get_cluster_num(std::vector<dirEnt>& dir_ents, std::string token) {
             }
             name.push_back(ent.dir_name[j]);
         }
-        std::cout << "[" << name << "]" << name.size() << "\n";
 
         if (token == name) {
-            return (ent.dir_fstClusHI << 8) | ent.dir_fstClusLO;
+            return &ent;
         }
     }
 
-    return 0;
+    return NULL;
 }
 
 // modify a vector of absolute path tokens with the given path
@@ -165,19 +169,28 @@ std::vector<dirEnt> get_path_dirEnts(const char* path) {
         if (token == "/") {
             cluster_num = bpb.bpb_RootClus;
         } else {
-            cluster_num = get_cluster_num(dir_ents, token);
+            dirEnt* entPtr = get_dirEnt_by_name(dir_ents, token);
+            // 0x10 stands for ATTR_DIRECTORY
+            if (entPtr == NULL || entPtr->dir_attr != 0x10) {
+                if (token == "." || token == "..") {
+                    // only root has no . .. file
+                    // so keep staying in root
+                    cluster_num = bpb.bpb_RootClus;
+                } else {
+                    // path is not a valid directory
+                    dir_ents.clear();
+                    break;
+                }
+            } else {
+                cluster_num = get_cluster_num(*entPtr);
+            }
         }
 
         if (cluster_num == 0) {
-            if (token == "." || token == "..") {
-                // only root has no . .. file
-                // 0 when .. is root
-                cluster_num = bpb.bpb_RootClus;
-            } else {
-                dir_ents.clear();
-                break;
-            }
+            // 0 means root
+            cluster_num = bpb.bpb_RootClus;
         }
+
         dir_ents = read_dir_cluster(cluster_num);
     }
 
