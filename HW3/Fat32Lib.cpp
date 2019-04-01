@@ -13,7 +13,6 @@ bpbFat32 bpb;
 int FirstDataSector;
 uint32_t *FAT;
 std::vector<dirEnt> cwd_ents;
-std::vector<std::string> cwd;
 std::vector<dirEnt> file_descs (128);
 
 bool read_sector(int sec_num, int size, void* buf) {
@@ -131,31 +130,6 @@ dirEnt* get_dirEnt_by_name(std::vector<dirEnt>& dir_ents, std::string token) {
     }
 
     return NULL;
-}
-
-// modify a vector of absolute path tokens with the given path
-// parse the .. .
-// path tokens must begin with /, return empty tokens for exception
-std::vector<std::string> merge_path_tokens(std::vector<std::string> tokens, const char* path) {
-    std::vector<std::string> newtokens = tokenize_path(path);
-
-    for (auto token: newtokens) {
-        if (token == "/") {
-            tokens.clear();
-            tokens.push_back("/");
-        } else if (token == "..") {
-            tokens.pop_back();
-            if (tokens.size() < 1) {
-                return tokens;
-            }
-        } else if (token == ".") {
-            continue;
-        } else {
-            tokens.push_back(token);
-        }
-    }
-
-    return tokens;
 }
 
 // return a vector of dirEnts of the path tokens
