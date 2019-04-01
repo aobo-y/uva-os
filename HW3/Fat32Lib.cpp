@@ -13,13 +13,13 @@ bpbFat32 bpb;
 int FirstDataSector;
 uint32_t *FAT;
 std::vector<dirEnt> cwd_ents;
+std::vector<std::string> cwd;
 
 bool read_sector(int sec_num, int size, void* buf) {
     if (lseek(ifd, sec_num * bpb.bpb_bytesPerSec, SEEK_SET) == -1) {
         return 0;
     }
 
-    std::cout << "set head to " << sec_num * bpb.bpb_bytesPerSec << "\n";
     if (read(ifd, buf, size) == -1) {
         return 0;
     }
@@ -65,6 +65,112 @@ std::vector<dirEnt> read_dir_cluster(uint32_t cluster_num) {
     return dirEnt_list;
 }
 
+std::vector<std::string> tokenize_path(const char *path) {
+    std::string s (path);
+
+    std::vector<std::string> tokens;
+    size_t pos = 0;
+    std::string token;
+    std::string delimiter = "/";
+
+    // set root
+    if (s.size() > 0 && s[0] == '/') {
+        tokens.push_back("/");
+    }
+
+    while ((pos = s.find(delimiter)) != std::string::npos) {
+        token = s.substr(0, pos);
+
+        // ignore case of aa///bb and leading root
+        if (token != "") {
+            tokens.push_back(s.substr(0, pos));
+        }
+        s.erase(0, pos + delimiter.length());
+    }
+
+    if (s != "") {
+        tokens.push_back(s);
+    }
+
+    return tokens;
+}
+
+uint32_t get_cluster_num(std::vector<dirEnt>& dir_ents, std::string token) {
+    std::string name;
+    int j;
+
+    for (auto ent: dir_ents) {
+        if (ent.dir_name[0] == 0xE5) {
+            continue;
+        }
+        if (ent.dir_name[0] == 0x00) {
+            break;
+        }
+        
+        name.clear();
+        j = 0;
+        for(j = 0; j < 11; j++){ 
+            if(ent.dir_name[j] == ' '){
+                continue;
+            } 
+            name.push_back(ent.dir_name[j]);
+        }
+        std::cout << "[" << name << "]" << name.size() << "\n";
+
+        if (token == name) {
+            return (ent.dir_fstClusHI << 8) | ent.dir_fstClusLO;
+        }
+    }
+
+    return -1;
+}
+
+std::vector<std::string> merge_path_tokens(std::vector<std::string> tokens, const char* path) {
+    std::vector<std::string> newtokens = tokenize_path(path);
+
+    for (auto token: newtokens) {
+        if (token == "/") {
+            tokens.clear();
+            tokens.push_back("/");
+        } else if (token == "..") {
+            tokens.pop_back();
+            if (tokens.size() < 1) {
+                return tokens;
+            }
+        } else if (token == ".") {
+            continue;
+        } else {
+            tokens.push_back(token);
+        }
+    }
+
+    return tokens;
+}
+
+std::vector<dirEnt> get_path_dirEnts(std::vector<std::string> path_tokens) {
+    std::vector<dirEnt> dir_ents = cwd_ents;
+    uint32_t cluster_num;
+
+    for (auto token: path_tokens) {
+        if (token == ".") {
+            continue;
+        } else if (token == "/") {
+            cluster_num = bpb.bpb_RootClus;
+        } else {
+            cluster_num = get_cluster_num(dir_ents, token);
+        }
+
+        if (cluster_num < 2) {
+            dir_ents.clear();
+            break;
+        }
+        
+        dir_ents = read_dir_cluster(cluster_num);
+    }
+
+    return dir_ents;
+}
+
 bool FAT_mount(const char *path) {
     ifd = open(path, O_RDWR);
     if (ifd == -1) {
@@ -76,8 +182,6 @@ bool FAT_mount(const char *path) {
         std::cerr << "Failed to read bdp:" << std::strerror(errno) << "\n";
         return 0;
     }
-
-    std::cout << bpb.bpb_FATSz32<< "\n";
 
     // RootDirSectors = ((BPB_RootEntCnt * 32) + (BPB_BytsPerSec – 1)) / BPB_BytsPerSec;
     // in FAT32, BPB_RootEntCnt is always 0
@@ -106,16 +210,30 @@ bool FAT_mount(const char *path) {
 
     // std::cout << "FAT entry count: " << (FATBytes / sizeof(uint32_t)) << "\n";
 
-    std::cout << "Root cluster num: " << bpb.bpb_RootClus << "\n";
-    cwd_ents = read_dir_cluster(bpb.bpb_RootClus);
-    std::cout << std::string ((char *)cwd_ents[0].dir_name, 11) << "\n";
+    if (FAT_cd("/") == -1) {
+        std::cerr << "Failed to set default CWD\n";
+    }
 
     return 1;
 }
 
 
 int FAT_cd(const char *path) {
-    return 0;
+    std::vector<std::string> path_tokens = merge_path_tokens(cwd, path);
+
+    if (path_tokens.size() == 0) {
+        return -1;
+    }
+
+    std::vector<dirEnt> dir_ents = get_path_dirEnts(path_tokens);
+
+    if (dir_ents.size() == 0) {
+        return -1;
+    }
+
+    cwd = path_tokens;
+    cwd_ents = dir_ents;
+    return 1;
 }
 
 int FAT_open(const char *path) {
@@ -131,6 +249,19 @@ int FAT_pread(int fildes, void *buf, int nbyte, int offset) {
 }
 
 dirEnt * FAT_readDir(const char *dirname) {
-    return cwd_ents.data();
+    // std::vector<std::string> tokens = tokenize_path(dirname);
+    std::vector<std::string> path_tokens = merge_path_tokens(cwd, dirname);
+
+    if (path_tokens.size() == 0) {
+        return NULL;
+    }
+
+    std::vector<dirEnt> dir_ents = get_path_dirEnts(path_tokens);
+
+    if (dir_ents.size() == 0) {
+        return NULL;
+    }
+
+    return dir_ents.data();
 }
 
