@@ -14,6 +14,7 @@ int FirstDataSector;
 uint32_t *FAT;
 std::vector<dirEnt> cwd_ents;
 std::vector<std::string> cwd;
+std::vector<dirEnt> file_descs (128);
 
 bool read_sector(int sec_num, int size, void* buf) {
     if (lseek(ifd, sec_num * bpb.bpb_bytesPerSec, SEEK_SET) == -1) {
@@ -65,6 +66,7 @@ std::vector<dirEnt> read_dir_cluster(uint32_t cluster_num) {
     return dirEnt_list;
 }
 
+// split path into tokens and use / as root token
 std::vector<std::string> tokenize_path(const char *path) {
     std::string s (path);
 
@@ -95,6 +97,8 @@ std::vector<std::string> tokenize_path(const char *path) {
     return tokens;
 }
 
+// return the first cluster number for a given file name in a vector of dirEnts
+// return 0 if cannot find the filename
 uint32_t get_cluster_num(std::vector<dirEnt>& dir_ents, std::string token) {
     std::string name;
     int j;
@@ -106,13 +110,13 @@ uint32_t get_cluster_num(std::vector<dirEnt>& dir_ents, std::string token) {
         if (ent.dir_name[0] == 0x00) {
             break;
         }
-        
+
         name.clear();
         j = 0;
-        for(j = 0; j < 11; j++){ 
+        for(j = 0; j < 11; j++){
             if(ent.dir_name[j] == ' '){
                 continue;
-            } 
+            }
             name.push_back(ent.dir_name[j]);
         }
         std::cout << "[" << name << "]" << name.size() << "\n";
@@ -122,9 +126,12 @@ uint32_t get_cluster_num(std::vector<dirEnt>& dir_ents, std::string token) {
         }
     }
 
-    return -1;
+    return 0;
 }
 
+// modify a vector of absolute path tokens with the given path
+// parse the .. .
+// path tokens must begin with /, return empty tokens for exception
 std::vector<std::string> merge_path_tokens(std::vector<std::string> tokens, const char* path) {
     std::vector<std::string> newtokens = tokenize_path(path);
 
@@ -147,24 +154,30 @@ std::vector<std::string> merge_path_tokens(std::vector<std::string> tokens, cons
     return tokens;
 }
 
-std::vector<dirEnt> get_path_dirEnts(std::vector<std::string> path_tokens) {
+// return a vector of dirEnts of the path tokens
+// return empty vector if path does not exist
+std::vector<dirEnt> get_path_dirEnts(const char* path) {
     std::vector<dirEnt> dir_ents = cwd_ents;
     uint32_t cluster_num;
+    std::vector<std::string> path_tokens = tokenize_path(path);
 
     for (auto token: path_tokens) {
-        if (token == ".") {
-            continue;
-        } else if (token == "/") {
+        if (token == "/") {
             cluster_num = bpb.bpb_RootClus;
         } else {
             cluster_num = get_cluster_num(dir_ents, token);
         }
 
-        if (cluster_num < 2) {
-            dir_ents.clear();
-            break;
+        if (cluster_num == 0) {
+            if (token == "." || token == "..") {
+                // only root has no . .. file
+                // 0 when .. is root
+                cluster_num = bpb.bpb_RootClus;
+            } else {
+                dir_ents.clear();
+                break;
+            }
         }
-        
         dir_ents = read_dir_cluster(cluster_num);
     }
 
@@ -219,19 +232,12 @@ bool FAT_mount(const char *path) {
 
 
 int FAT_cd(const char *path) {
-    std::vector<std::string> path_tokens = merge_path_tokens(cwd, path);
-
-    if (path_tokens.size() == 0) {
-        return -1;
-    }
-
-    std::vector<dirEnt> dir_ents = get_path_dirEnts(path_tokens);
+    std::vector<dirEnt> dir_ents = get_path_dirEnts(path);
 
     if (dir_ents.size() == 0) {
         return -1;
     }
 
-    cwd = path_tokens;
     cwd_ents = dir_ents;
     return 1;
 }
@@ -250,18 +256,16 @@ int FAT_pread(int fildes, void *buf, int nbyte, int offset) {
 
 dirEnt * FAT_readDir(const char *dirname) {
     // std::vector<std::string> tokens = tokenize_path(dirname);
-    std::vector<std::string> path_tokens = merge_path_tokens(cwd, dirname);
-
-    if (path_tokens.size() == 0) {
-        return NULL;
-    }
-
-    std::vector<dirEnt> dir_ents = get_path_dirEnts(path_tokens);
+    std::vector<dirEnt> dir_ents = get_path_dirEnts(dirname);
 
     if (dir_ents.size() == 0) {
         return NULL;
     }
 
-    return dir_ents.data();
+    size_t size = sizeof(dirEnt) * dir_ents.size();
+    dirEnt *buf = (dirEnt *) malloc(size);
+    memcpy(buf, dir_ents.data(), size);
+
+    return buf;
 }
 
