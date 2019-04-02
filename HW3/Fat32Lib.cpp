@@ -5,6 +5,7 @@
 #include <fcntl.h>
 #include <unistd.h>
 #include <vector>
+#include <list>
 
 #include "myfat.h"
 
@@ -13,7 +14,10 @@ bpbFat32 bpb;
 int FirstDataSector;
 uint32_t *FAT;
 std::vector<dirEnt> cwd_ents;
+
 std::vector<dirEnt> file_descs (128);
+
+std::list<int> free_fileDescs;
 
 bool read_sector(int sec_num, int size, void* buf) {
     if (lseek(ifd, sec_num * bpb.bpb_bytesPerSec, SEEK_SET) == -1) {
@@ -54,7 +58,7 @@ std::vector<dirEnt> read_dir_cluster(uint32_t cluster_num) {
     // convert to bytes array to conduct arithmatic with corresponding size
     uint8_t *ptr = (uint8_t *) dirEnt_list.data();
     for (auto const& cn: clusters) {
-        std::cout << cn << " cluster num\n";
+        // std::cout << cn << " cluster num\n";
         if (!read_cluster(cn, cluster_bytes, ptr)) {
             std::cerr << "Failed to read cluster:" << std::strerror(errno) << "\n";
             break;
@@ -134,10 +138,9 @@ dirEnt* get_dirEnt_by_name(std::vector<dirEnt>& dir_ents, std::string token) {
 
 // return a vector of dirEnts of the path tokens
 // return empty vector if path does not exist
-std::vector<dirEnt> get_path_dirEnts(const char* path) {
+std::vector<dirEnt> get_path_dirEnts(std::vector<std::string> path_tokens) {
     std::vector<dirEnt> dir_ents = cwd_ents;
     uint32_t cluster_num;
-    std::vector<std::string> path_tokens = tokenize_path(path);
 
     for (auto token: path_tokens) {
         if (token == "/") {
@@ -196,10 +199,9 @@ bool FAT_mount(const char *path) {
         return 0;
     }
 
-
-    std::cout << "cluster count: " << CountofClusters << "\n";
-    std::cout << "bpb rsv sec: " << bpb.bpb_rsvdSecCnt << "\n";
-    std::cout << "bpb fat size: " << FATSz << "\n";
+    // std::cout << "cluster count: " << CountofClusters << "\n";
+    // std::cout << "bpb rsv sec: " << bpb.bpb_rsvdSecCnt << "\n";
+    // std::cout << "bpb fat size: " << FATSz << "\n";
 
     int FATBytes = FATSz * bpb.bpb_bytesPerSec;
     FAT = (uint32_t *) malloc(FATBytes);
@@ -214,12 +216,18 @@ bool FAT_mount(const char *path) {
         std::cerr << "Failed to set default CWD\n";
     }
 
+    // init free file descriptor list
+    for (int i = 0; i < 128; i++) {
+        free_fileDescs.push_back(i);
+    }
+
     return 1;
 }
 
 
 int FAT_cd(const char *path) {
-    std::vector<dirEnt> dir_ents = get_path_dirEnts(path);
+    std::vector<std::string> path_tokens = tokenize_path(path);
+    std::vector<dirEnt> dir_ents = get_path_dirEnts(path_tokens);
 
     if (dir_ents.size() == 0) {
         return -1;
@@ -230,7 +238,36 @@ int FAT_cd(const char *path) {
 }
 
 int FAT_open(const char *path) {
-    return 0;
+    std::vector<std::string> path_tokens = tokenize_path(path);
+
+    if (path_tokens.size() == 0) {
+        return -1;
+    }
+
+    std::string name = path_tokens[path_tokens.size() - 1];
+    path_tokens.pop_back();
+
+    std::vector<dirEnt> dir_ents = get_path_dirEnts(path_tokens);
+    if (dir_ents.size() == 0) {
+        return -1;
+    }
+
+    dirEnt* entPtr = get_dirEnt_by_name(dir_ents, name);
+    // cannot find file or it is a directory
+    if (entPtr == NULL || entPtr->dir_attr == 0x10) {
+        return -1;
+    }
+
+    // no free space
+    if (free_fileDescs.size() == 0) {
+        return -1;
+    }
+
+    int fd = free_fileDescs.front();
+    file_descs[fd] = *entPtr;
+    free_fileDescs.pop_front();
+
+    return fd;
 }
 
 int FAT_close(int fd) {
@@ -242,8 +279,8 @@ int FAT_pread(int fildes, void *buf, int nbyte, int offset) {
 }
 
 dirEnt * FAT_readDir(const char *dirname) {
-    // std::vector<std::string> tokens = tokenize_path(dirname);
-    std::vector<dirEnt> dir_ents = get_path_dirEnts(dirname);
+    std::vector<std::string> tokens = tokenize_path(dirname);
+    std::vector<dirEnt> dir_ents = get_path_dirEnts(tokens);
 
     if (dir_ents.size() == 0) {
         return NULL;
