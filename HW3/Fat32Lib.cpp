@@ -114,8 +114,11 @@ uint32_t get_cluster_num(dirEnt& ent) {
 // return the dirEnt for a given file name in a vector of dirEnts
 // return NULL if cannot find the filename
 dirEnt* get_dirEnt_by_name(std::vector<dirEnt>& dir_ents, std::string token) {
+    // FAT only stores upper case as filename
+    for (auto & c: token) c = toupper(c);
+
     std::string name;
-    int j;
+    std::string ext;
 
     for (auto& ent: dir_ents) {
         if (ent.dir_name[0] == 0xE5) {
@@ -126,12 +129,22 @@ dirEnt* get_dirEnt_by_name(std::vector<dirEnt>& dir_ents, std::string token) {
         }
 
         name.clear();
-        j = 0;
-        for(j = 0; j < 11; j++){
-            if(ent.dir_name[j] == ' '){
+        ext.clear();
+
+        for(int j = 0; j < 11; j++){
+            if (ent.dir_name[j] == ' '){
                 continue;
             }
-            name.push_back(ent.dir_name[j]);
+
+            if (j < 8) {
+                name.push_back(ent.dir_name[j]);
+            } else {
+                ext.push_back(ent.dir_name[j]);
+            }
+        }
+
+        if (ext.size() > 0) {
+            name = name + "." + ext;
         }
 
         if (token == name) {
