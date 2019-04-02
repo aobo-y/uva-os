@@ -26,19 +26,19 @@ int number_open = 0;
 
 int main(int argc, char *argv[]) {
 	//int i = 0;
-	
+
 	char line[1024];
 	char argDelim[2] = " ";
 
 	while(1) {
-		
+
 		// read input
 		printf("#");
 		fflush(stdout);
 		readNonEmptyLine(line);
 		printf("%s\n", line);
-		fflush(stdout); 
-		if (strcmp(line, "exit") == 0){ 
+		fflush(stdout);
+		if (strcmp(line, "exit") == 0){
 			//printf("\n");
 			break;
 		}
@@ -50,80 +50,82 @@ int main(int argc, char *argv[]) {
 			continue;
 		}
 
-		
+
 		int i = 0;
 		int argCount = 0;
 		char *args[15];
 		argCount = tokenize(line, args, argDelim) ;
 		//printf("argsCount = %d \n", argCount);
-		
+
 		if(strcmp(args[0], "cd") == 0){
 			// format cd dirpath
-			
+
 			printf("changing directory to %s\n", args[1]);
 			int status = FAT_cd(args[1]);
-			if(status == 1){ 
+			if(status == 1){
 				printf("Successful\n");
 			}
-			else { 
+			else {
 				printf("Not Successful\n");
-			}				
+			}
 			fflush(stdout);
 		}
-		
+
 		else if(strcmp(args[0], "cp") == 0){
 			// format cp source target size
-			
+
 			printf("copying file %s of size %d to %s \n", args[1], atoi(args[3]), args[2]);
 			unsigned char *readbuf = copyFile(args[1], atoi(args[3]), 0);
-			FILE *write_ptr;
-			write_ptr = fopen(args[2],"wb"); 
-			fwrite(readbuf,atoi(args[3]),1,write_ptr);
-			fclose(write_ptr);
+			if(readbuf != NULL) {
+				FILE *write_ptr;
+				write_ptr = fopen(args[2],"wb");
+				fwrite(readbuf,atoi(args[3]),1,write_ptr);
+				fclose(write_ptr);
+			}
 			fflush(stdout);
 		}
-		
+
 		else if(strcmp(args[0], "read") == 0){
 			// format read fd nbyte offset
-		
+
 			if(argCount >= 4) {
 				unsigned char *readout = readFile(atoi(args[1]), atoi(args[2]), atoi(args[3]));
 				if(readout != NULL)
 					printf("\n%s\n", readout);
-				       
-			} 
+
+			}
 			else printf("ERROR: not enough argument for read");
 			fflush(stdout);
 		}
-		
+
 		else if(strcmp(args[0], "open") == 0){
 			// format open filepath
-			
+
 			printf("Opening file %s\n", args[1]);
 			int fd = FAT_open(args[1]);
-			if(fd != -1){ 
+			if(fd != -1){
 				printf("File opened successfully with file descriptor %d\n", fd);
 			}
 			else printf("File open error \n");
 			fflush(stdout);
 		}
-		
+
 		else if(strcmp(args[0], "close") == 0){
 			// format close fd
-			
+
 			printf("close file %s\n", args[1]);
 			int status = FAT_close(atoi(args[1]));
 			printf("status: %d\n", status);
 			fflush(stdout);
 			//printf("After CD: %s\n", cwdPath);
 		}
-		
+
 		else if(strcmp(args[0], "lsdir") == 0){
-			// format lsdir dirpath 
+			// format lsdir dirpath
 			// if lsdir is tried without an argument, we will try lsdir .
-			
+
 			char *path = (char *) malloc(100 * sizeof(char));
-			
+
 			if(argCount < 2){
 				strcpy(path, ".");
 			}
@@ -133,7 +135,7 @@ int main(int argc, char *argv[]) {
 			printf("listing directory %s\n", path);
 			dirEnt *dirs = FAT_readDir(path);
 			// please null terminate the dirs.
-			
+
 			if(dirs != NULL){
 			//printf("%12s %4s %4s\n", "File Name", "Attr", "Size");
 				int t = 0;
@@ -147,44 +149,44 @@ int main(int argc, char *argv[]) {
 					  char dir_name[12];
 					  dir_name[11] = 0;
 					  int j = 0, k = 0;
-					  for(j = 0; j < 11; j++){ 
+					  for(j = 0; j < 11; j++){
 					    if(dirs[i].dir_name[j] == ' '){
 					      continue;
-					    } 
+					    }
 					    dir_name[k++] = dirs[i].dir_name[j];
 					  }
 					  dir_name[k] = '\0';
-	      
+
 					  printf("%12s %04x %4ld\n", dir_name, dirs[i].dir_attr, (long) dirs[i].dir_fileSize);
 					  t++;
 					}
 				}
 			}
-			
+
 			else{
 				printf("ERROR: %s is not a directory\n", path);
 			}
-			
+
 			fflush(stdout);
 		}
-		
+
 		else if(strcmp(args[0], "mount") == 0){
 			// format mount filename
-			
+
 			if(FAT_mount(args[1])){
 				printf("file mount successful");
 			}
 			else printf("ERROR: file mount error");
 			fflush(stdout);
 		}
-		
+
 		else{
 			printf("ERROR: invalid command\n");
 		}
 	}
-	
-	
-	
+
+
+
 	return 0;
 }
 
@@ -192,12 +194,12 @@ int tokenize(char *line, char **args, char *argDelim){
 	char *token;
 	int i = 0;
 	token = strtok(line,argDelim);
-	
+
 	while( token != NULL ){
 		//printf("%d\n", strlen(token));
 		args[i] = (char *) malloc (strlen(token) * sizeof(char));
 		strcpy(args[i], token);
-		i++; 
+		i++;
 		token = strtok(NULL,argDelim);
 	}
 	return i;
@@ -240,8 +242,8 @@ int validLine(char *chArray) {
 		if (!((ch >= 'A' && ch <= 'Z') || ( ch >= 'a' && ch <= 'z') 		// letters
 				|| (ch >= '0' && ch <= '9') 				// numbers
 				|| ch == '.' || ch == '-' || ch == '_' || ch == '/'	// special characters
-				|| ch == ' ' || ch == '\t'				// white spaces 
-				|| ch == '<' || ch == '>' 
+				|| ch == ' ' || ch == '\t'				// white spaces
+				|| ch == '<' || ch == '>'
 				|| ch == '~')) {		// operators
 			return 0;
 		}
@@ -252,7 +254,7 @@ int validLine(char *chArray) {
 
 
 unsigned char *readFile(int fd, int numbytes, int offset){
-  
+
   if(fd == -1){
     printf("ERROR: Invalid FileName\n");
     return NULL;
