@@ -22,25 +22,23 @@ struct fileDesc {
 };
 
 std::vector<fileDesc> file_descs (128, fileDesc {1, 0, 0});
-// use a list to avoid searching for free file descriptor
+// a list to avoid searching for free file descriptor
 std::list<int> free_fileDescs;
 
-bool read_sector(int sec_num, int size, void* buf) {
-    if (lseek(ifd, sec_num * bpb.bpb_bytesPerSec, SEEK_SET) == -1) {
-        return 0;
+// read bytes into buffer according to a sector
+int read_sector(int sec_num, void* buf, int size, int offset) {
+    if (lseek(ifd, sec_num * bpb.bpb_bytesPerSec + offset, SEEK_SET) == -1) {
+        return -1;
     }
 
-    if (read(ifd, buf, size) == -1) {
-        return 0;
-    }
-
-    return size;
+    return read(ifd, buf, size);
 }
 
-bool read_cluster(int cluster_num, int size, void* buf) {
+// read bytes into buffer according to a cluster
+int read_cluster(int cluster_num, void* buf, int size, int offset) {
     int sec_num = FirstDataSector + (cluster_num - 2) * bpb.bpb_secPerClus;
 
-    return read_sector(sec_num, size, buf);
+    return read_sector(sec_num, buf, size, offset);
 }
 
 uint32_t next_cluster(uint32_t cluster_num) {
@@ -48,6 +46,8 @@ uint32_t next_cluster(uint32_t cluster_num) {
     return FAT[cluster_num] & 0x0FFFFFFF;
 }
 
+// recursively read the clusters according to FAT from the given cluster num
+// save as vector of dirEnt and return
 std::vector<dirEnt> read_dir_cluster(uint32_t cluster_num) {
     std::vector<uint32_t> clusters;
 
@@ -65,7 +65,7 @@ std::vector<dirEnt> read_dir_cluster(uint32_t cluster_num) {
     uint8_t *ptr = (uint8_t *) dirEnt_list.data();
     for (auto const& cn: clusters) {
         // std::cout << cn << " cluster num\n";
-        if (!read_cluster(cn, cluster_bytes, ptr)) {
+        if (read_cluster(cn, ptr, cluster_bytes, 0) == -1) {
             std::cerr << "Failed to read cluster:" << std::strerror(errno) << "\n";
             break;
         }
@@ -205,13 +205,9 @@ bool FAT_mount(const char *path) {
         return 0;
     }
 
-    // std::cout << "cluster count: " << CountofClusters << "\n";
-    // std::cout << "bpb rsv sec: " << bpb.bpb_rsvdSecCnt << "\n";
-    // std::cout << "bpb fat size: " << FATSz << "\n";
-
     int FATBytes = FATSz * bpb.bpb_bytesPerSec;
     FAT = (uint32_t *) malloc(FATBytes);
-    if (!read_sector(bpb.bpb_rsvdSecCnt, FATBytes, FAT)) {
+    if (read_sector(bpb.bpb_rsvdSecCnt, FAT, FATBytes, 0) == -1) {
         std::cerr << "Failed to read FAT\n";
         return 0;
     }
@@ -294,8 +290,65 @@ int FAT_close(int fd) {
     return 0;
 }
 
+// read bytes into the given buf and return the number of bytes read
+// return -1 if the fd does not exist
 int FAT_pread(int fildes, void *buf, int nbyte, int offset) {
-    return 0;
+    fileDesc fd_ent = file_descs[fildes];
+
+    if (fd_ent.free != 0) {
+        return -1;
+    }
+
+    uint32_t cluster_num = fd_ent.cluster;
+
+    // pretend like real file system, always read at least one cluster
+    int cluster_bytes = bpb.bpb_secPerClus * bpb.bpb_bytesPerSec;
+    uint8_t *ptr = (uint8_t *) buf;
+    int left_bytes = nbyte;
+    int left_offset = offset;
+    int left_filesize = fd_ent.size;
+
+    while (left_bytes != 0 && left_offset < left_filesize) {
+        // skip entire cluster if offset is huge
+        if (left_offset > cluster_bytes) {
+            left_offset -= cluster_bytes;
+            left_filesize -= cluster_bytes;
+        } else {
+            // bytes to read in this cluster
+            int read_size = cluster_bytes;
+
+            if (left_offset != 0) {
+                read_size -= left_offset;
+                left_filesize -= left_offset;
+            }
+
+            if (read_size > left_bytes) {
+                read_size = left_bytes;
+            }
+
+            if (read_size > left_filesize) {
+                read_size = left_filesize;
+            }
+
+            if (read_cluster(cluster_num, ptr, read_size, left_offset) == -1) {
+                return 0;
+            }
+
+            ptr += read_size;
+            left_bytes -= read_size;
+            left_filesize -= read_size;
+            left_offset = 0;
+        }
+
+        cluster_num = next_cluster(cluster_num);
+
+        // reach file end
+        if (cluster_num >= 0x0FFFFFF8) {
+            break;
+        }
+    };
+
+    return nbyte - left_bytes;
 }
 
 dirEnt * FAT_readDir(const char *dirname) {
