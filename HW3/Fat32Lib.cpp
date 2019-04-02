@@ -15,8 +15,14 @@ int FirstDataSector;
 uint32_t *FAT;
 std::vector<dirEnt> cwd_ents;
 
-std::vector<dirEnt> file_descs (128);
+struct fileDesc {
+    bool free;
+    uint32_t size;
+    uint32_t cluster;
+};
 
+std::vector<fileDesc> file_descs (128, fileDesc {1, 0, 0});
+// use a list to avoid searching for free file descriptor
 std::list<int> free_fileDescs;
 
 bool read_sector(int sec_num, int size, void* buf) {
@@ -237,6 +243,8 @@ int FAT_cd(const char *path) {
     return 1;
 }
 
+// create file descriptor for the path and return the fd
+// return -1 for failures which including invalid path, not file, no free fd
 int FAT_open(const char *path) {
     std::vector<std::string> path_tokens = tokenize_path(path);
 
@@ -264,13 +272,25 @@ int FAT_open(const char *path) {
     }
 
     int fd = free_fileDescs.front();
-    file_descs[fd] = *entPtr;
+    fileDesc fd_ent {0, entPtr->dir_fileSize, get_cluster_num(*entPtr)};
+    file_descs[fd] = fd_ent;
     free_fileDescs.pop_front();
 
     return fd;
 }
 
+// close the give file descriptor and return 0
+// return -1 if the fd does not exist
 int FAT_close(int fd) {
+    // make sure file is actually open
+    // return -1 if the file descriptor is free
+    if (file_descs[fd].free != 0)  {
+        return -1;
+    }
+
+    file_descs[fd].free = 1;
+    free_fileDescs.push_back(fd);
+
     return 0;
 }
 
