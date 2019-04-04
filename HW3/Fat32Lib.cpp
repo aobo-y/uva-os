@@ -193,6 +193,8 @@ std::vector<dirEnt> get_path_dirEnts(std::vector<std::string> path_tokens) {
     return dir_ents;
 }
 
+// mount the spcified image
+// return 0/false for errors, otherwise 1/true
 bool FAT_mount(const char *path) {
     ifd = open(path, O_RDWR);
     if (ifd == -1) {
@@ -239,7 +241,8 @@ bool FAT_mount(const char *path) {
     return 1;
 }
 
-
+// change current working directory
+// return 1 on success and -1 on failure
 int FAT_cd(const char *path) {
     std::vector<std::string> path_tokens = tokenize_path(path);
     std::vector<dirEnt> dir_ents = get_path_dirEnts(path_tokens);
@@ -364,6 +367,8 @@ int FAT_pread(int fildes, void *buf, int nbyte, int offset) {
     return nbyte - left_bytes;
 }
 
+// return an array of director entries including the empty ones
+// it's user's responsibility to free the array allocated on the heap
 dirEnt * FAT_readDir(const char *dirname) {
     std::vector<std::string> tokens = tokenize_path(dirname);
     std::vector<dirEnt> dir_ents = get_path_dirEnts(tokens);
