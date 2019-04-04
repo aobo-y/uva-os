@@ -50,13 +50,20 @@ This function change the current working directory. It is implemented almost the
 
 ### FAT_open
 
-This function open the file in the specified path
+This function opens the file in the specified path and returns the file descriptor. It first tokenize the path. The last token is removed out as the filename. Then it takes use of `FAT_readDir` with the left tokens to get the parent directory' array of entries. The entry with the exact filename is retrieved. At last, the function pops an empty file descriptor number from the linked list of the free descriptors and saves the entry's file size and the first cluster number into this free position of the file descriptor array. The availablity flag of this  descriptor is marked as false and the number is returned.
 
+### FAT_close
 
+This function is responsible to release the opened file descriptor. It takes a number and check if the availability flag is marked as false in the position of this number within the file desciptor array to ensure the intent of closing an opened file. Then this free flag is updated back as true and the number is also pushed back into the linked list of free descriptors.
 
+### FAT_pread
+
+This function reads the specified number of bytes within the boundary the file size from the offset of the given file descriptor into the buffer. It first ensures the descriptor is opened through the availability flag and gets the file size and the first cluster number. It directly returns if the offset is larger than the file size because there is no contents to read after such offset. Then the function follows the FAT chain to skip clusters to fulfill the offset until the remaining offset is smaller than the cluster size and read the cluster with the offset of the remnant. Each read cannot exceed the boundary of a cluster and the function iterates the FAT chain to read the specified bytes. However, the total bytes read cannot exceed the remaining file size after offset, so the read in the last cluster is smaller than the size occupied by the file even it may not meet the user specified bytes.
 
 ## Analysis
 
 This work can definitely be further optimized. First, keeping the entire BPB in memory is not necessary. Not every field in BPB is useful. The program can calculate and store only the wanted values, like number of bytes in each cluster and the root cluster number. Second, pre-allocate 128-long file descriptor array in the stack may be wasteful. It can be changed to an array of file descriptor pointers and dynamically allocate the actual descriptor in the heap. It can save memories when the number of opened files are usually limited, but this may sacrifies the performance due to the heap operations.
 
 Since the program only keeps the directory entries of the current working directory, it cannot tell the actual absolute path. Even though it is enough for all the fucntions exposed, keep such as path string can be handful to users.
+
+The next assigned file descriptor number is not expectable. There is no guarantee that this the smallest available number is returned. Because the available numbers is maintained in a linked list which pop in front and push in the end, the order depends on previously released order.
