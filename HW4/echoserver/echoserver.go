@@ -7,11 +7,14 @@ import (
 )
 
 func echoServer(c net.Conn) {
+	clistr := c.RemoteAddr().String()
+	fmt.Println("Received connection from " + clistr)
+
 	for {
 		buf := make([]byte, 512)
 		nr, err := c.Read(buf)
 		if err != nil {
-			fmt.Println("Lost connection from " + c.RemoteAddr().String())
+			fmt.Println("Lost connection from " + clistr)
 			return
 		}
 
@@ -27,23 +30,21 @@ func echoServer(c net.Conn) {
 }
 
 func main() {
-	seraddr := "0.0.0.0:8888"
+	port := "8888"
 
-	l, err := net.Listen("tcp", seraddr)
+	l, err := net.Listen("tcp", ":"+port)
 
 	if err != nil {
 		log.Fatal("listen error:", err)
 	}
 
-	fmt.Println("Echo server is listening at " + seraddr)
+	fmt.Println("Echo server is listening at port " + port)
 
 	for {
 		conn, err := l.Accept()
 		if err != nil {
 			log.Fatal("accept error:", err)
 		}
-
-		fmt.Println("Received connection from " + conn.RemoteAddr().String())
 
 		go echoServer(conn)
 	}
