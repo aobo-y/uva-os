@@ -9,6 +9,17 @@ import (
 	"time"
 )
 
+type connection struct {
+	uname   string // username
+	owport  string // outward facing port
+	cliport string // punch client facing port
+	cliip   string // client ip address
+	bytrcv  int    // bytes received
+	bytsnd  int    // bytes sent
+}
+
+var openConns map[string]connection // maps of open connections
+
 var optSplit = regexp.MustCompile(`\s+`)
 
 /*
@@ -41,6 +52,10 @@ func openPort(ctrconn net.Conn, port string, uname string) {
 	defer clilstner.Close()
 
 	_, cliport, _ := net.SplitHostPort(clilstner.Addr().String())
+
+	cliip, _, _ := net.SplitHostPort(ctrconn.RemoteAddr().String())
+	openConns[port] = connection{uname, port, cliport, cliip, 0, 0}
+	defer delete(openConns, port)
 
 	for {
 		conn, err := l.Accept()
