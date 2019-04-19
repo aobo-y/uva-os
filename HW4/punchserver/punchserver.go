@@ -6,23 +6,41 @@ import (
 	"net"
 	"os"
 	"regexp"
+	"time"
 )
 
 var optSplit = regexp.MustCompile(`\s+`)
 
-func punch(conn net.Conn, ctrconn net.Conn) {
+/*
+	Open a
+	owconn: outward connection
+	ctrconn: control connection
+*/
+func pipe(owconn net.Conn, cliconn net.Conn) {
 
 }
 
-func openPort(ctrconn net.Conn, port string) {
+func openPort(ctrconn net.Conn, port string, uname string) {
 	l, err := net.Listen("tcp", ":"+port)
 
 	if err != nil {
-		log.Fatal("open client port error:", err)
+		log.Fatal("open app port error:", err)
 		ctrconn.Write([]byte("FAIL"))
 		ctrconn.Close()
 		return
 	}
+
+	defer l.Close()
+
+	clilstner, err := net.Listen("tcp", ":0")
+	if err != nil {
+		log.Fatal("open punch client port error:", err)
+		return
+	}
+
+	defer clilstner.Close()
+
+	_, cliport, _ := net.SplitHostPort(clilstner.Addr().String())
 
 	for {
 		conn, err := l.Accept()
@@ -30,7 +48,43 @@ func openPort(ctrconn net.Conn, port string) {
 			log.Fatal("accept extrernal connection error:", err)
 		}
 
-		go punch(conn, ctrconn)
+		nounce := randString(256)
+		ctrconn.Write([]byte("CONNECT " + cliport + " " + nounce))
+
+		connChn := make(chan net.Conn)
+		errChn := make(chan error)
+
+		// thread to wait for connection with correct nounce
+		go func() {
+			cliconn, err := clilstner.Accept()
+			if err != nil {
+				errChn <- fmt.Errorf("accept punch client connection error: %v", err)
+				return
+			}
+
+			buf := make([]byte, 512)
+			cliconn.Read(buf)
+			clinounce := string(buf)
+
+			if clinounce != nounce {
+				errChn <- fmt.Errorf("Punch client connection fail, received: %v", clinounce)
+				return
+			}
+
+			connChn <- cliconn
+		}()
+
+		// timeout after 10s
+		select {
+		case cliconn := <-connChn:
+			go pipe(conn, cliconn)
+		case err = <-errChn:
+			fmt.Println(err)
+			return
+		case <-time.After(10 * time.Second):
+			fmt.Println("Punch client connection timeout")
+			return
+		}
 	}
 }
 
@@ -73,7 +127,7 @@ func handleClient(conn net.Conn) {
 			return
 		}
 
-		openPort(conn, tokens[3])
+		openPort(conn, tokens[3], tokens[1])
 	case "LIST":
 		if len(tokens) != 1 {
 			fmt.Println("Invalid OPEN operation from " + clistr)
