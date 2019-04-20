@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"path"
+	"strconv"
 	"strings"
 )
 
@@ -69,6 +70,11 @@ func main() {
 			continue
 		}
 
+		if strings.Contains(uname, " ") {
+			fmt.Println("Username cannot contain space:")
+			continue
+		}
+
 		dup := false
 		for i := 0; i < len(users); i++ {
 			if users[i].uname == uname {
@@ -96,6 +102,11 @@ func main() {
 			continue
 		}
 
+		if strings.Contains(pwd, " ") {
+			fmt.Println("Password cannot contain space:")
+			continue
+		}
+
 		break
 	}
 
@@ -107,6 +118,13 @@ func main() {
 
 		if port == "" {
 			fmt.Println("Port cannot be empty:")
+			continue
+		}
+
+		_, err = strconv.Atoi(port)
+
+		if err != nil {
+			fmt.Println("Ivalid port number:")
 			continue
 		}
 
