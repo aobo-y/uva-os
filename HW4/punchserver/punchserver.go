@@ -6,19 +6,21 @@ import (
 	"net"
 	"os"
 	"regexp"
+	"sync"
 	"time"
 )
 
 type connection struct {
-	uname   string // username
-	owport  string // outward facing port
-	cliport string // punch client facing port
-	cliip   string // client ip address
-	bytrcv  int    // bytes received
-	bytsnd  int    // bytes sent
+	sync.RWMutex        // mutex for concurrent read & write
+	uname        string // username
+	owport       string // outward facing port
+	cliport      string // punch client facing port
+	cliip        string // client ip address
+	bytrcv       int    // bytes received
+	bytsnd       int    // bytes sent
 }
 
-var openConns map[string]connection // maps of open connections
+var openConns map[string]*connection // maps of open connections
 
 var optSplit = regexp.MustCompile(`\s+`)
 
@@ -28,14 +30,54 @@ var optSplit = regexp.MustCompile(`\s+`)
 	ctrconn: control connection
 */
 func pipe(owconn net.Conn, cliconn net.Conn) {
+	fmt.Println("Pipe " + owconn.RemoteAddr().String() + " -> " + owconn.LocalAddr().String() + " <-->" + cliconn.LocalAddr().String() + " <- " + cliconn.RemoteAddr().String())
 
+	_, port, _ := net.SplitHostPort(owconn.LocalAddr().String())
+	connEntry := openConns[port]
+	errChn := make(chan error)
+
+	unipipe := func(from net.Conn, to net.Conn, in bool) {
+		buf := make([]byte, 1024)
+
+		for {
+			n, err := from.Read(buf)
+
+			if err != nil {
+				errChn <- err
+				return
+			}
+			_, err = to.Write(buf[:n])
+
+			if err != nil {
+				errChn <- err
+				return
+			}
+
+			connEntry.Lock()
+			if in {
+				connEntry.bytrcv += n
+			} else {
+				connEntry.bytsnd += n
+			}
+			connEntry.Unlock()
+		}
+	}
+
+	go unipipe(owconn, cliconn, true)
+	go unipipe(cliconn, owconn, false)
+
+	<-errChn
+	owconn.Close()
+	cliconn.Close()
+
+	fmt.Println("Close " + owconn.RemoteAddr().String() + " -> " + owconn.LocalAddr().String() + " <-->" + cliconn.LocalAddr().String() + " <- " + cliconn.RemoteAddr().String())
 }
 
 func openPort(ctrconn net.Conn, port string, uname string) {
 	l, err := net.Listen("tcp", ":"+port)
 
 	if err != nil {
-		log.Fatal("open app port error:", err)
+		log.Fatal("open outward facing port error:", err)
 		ctrconn.Write([]byte("FAIL"))
 		ctrconn.Close()
 		return
@@ -54,7 +96,12 @@ func openPort(ctrconn net.Conn, port string, uname string) {
 	_, cliport, _ := net.SplitHostPort(clilstner.Addr().String())
 
 	cliip, _, _ := net.SplitHostPort(ctrconn.RemoteAddr().String())
-	openConns[port] = connection{uname, port, cliport, cliip, 0, 0}
+	openConns[port] = &connection{
+		uname:   uname,
+		owport:  port,
+		cliport: cliport,
+		cliip:   cliip,
+	}
 	defer delete(openConns, port)
 
 	for {
@@ -63,13 +110,14 @@ func openPort(ctrconn net.Conn, port string, uname string) {
 			log.Fatal("accept extrernal connection error:", err)
 		}
 
+		fmt.Println("Outward " + conn.RemoteAddr().String() + " -> " + conn.LocalAddr().String())
+
 		nounce := randString(256)
 		ctrconn.Write([]byte("CONNECT " + cliport + " " + nounce))
 
+		// thread to wait for connection with correct nounce
 		connChn := make(chan net.Conn)
 		errChn := make(chan error)
-
-		// thread to wait for connection with correct nounce
 		go func() {
 			cliconn, err := clilstner.Accept()
 			if err != nil {
@@ -92,6 +140,7 @@ func openPort(ctrconn net.Conn, port string, uname string) {
 		// timeout after 10s
 		select {
 		case cliconn := <-connChn:
+			fmt.Println("Client " + cliconn.RemoteAddr().String() + " -> " + cliconn.LocalAddr().String())
 			go pipe(conn, cliconn)
 		case err = <-errChn:
 			fmt.Println(err)
