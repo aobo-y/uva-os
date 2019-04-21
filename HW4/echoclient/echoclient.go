@@ -1,22 +1,36 @@
 package main
 
 import (
+	"bufio"
 	"fmt"
-	"log"
+	"io"
 	"net"
 	"os"
 )
 
-func reader(c net.Conn) {
+func readConn(c net.Conn) error {
 	buf := make([]byte, 1024)
 	for {
 		n, err := c.Read(buf[:])
 
 		if err != nil {
-			return
+			return err
 		}
 
 		fmt.Println("Echo Client got:", string(buf[0:n]))
+	}
+}
+
+func writeConn(c net.Conn) error {
+	scanner := bufio.NewScanner(os.Stdin)
+	for {
+		scanner.Scan()
+		input := scanner.Text()
+
+		_, err := c.Write([]byte(input))
+		if err != nil {
+			return err
+		}
 	}
 }
 
@@ -35,16 +49,22 @@ func main() {
 
 	fmt.Println("Connected to Echo Server " + seraddr + "; Input text below:")
 
-	go reader(conn)
+	done := make(chan error)
 
-	var input string
-	for {
-		fmt.Scanln(&input)
+	// read from echoserver and write to stdout
+	go func() {
+		done <- readConn(conn)
+	}()
 
-		_, err := conn.Write([]byte(input))
-		if err != nil {
-			log.Fatal("write error:", err)
-			break
-		}
+	// read from stdin and write to echoserver
+	go func() {
+		done <- writeConn(conn)
+	}()
+
+	err = <-done
+	if err != nil && err != io.EOF {
+		panic(err)
 	}
+
+	fmt.Println("Echo Server closed")
 }
