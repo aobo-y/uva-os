@@ -8,7 +8,13 @@ import (
 	"regexp"
 	"sync"
 	"time"
+
+	"punch"
+
+	"golang.org/x/crypto/bcrypt"
 )
+
+var users []punch.User
 
 type connection struct {
 	sync.RWMutex        // mutex for concurrent read & write
@@ -157,6 +163,27 @@ func list() {
 }
 
 func verify(uname string, pw string, port string) bool {
+	pwbyt := []byte(pw)
+
+	for _, user := range users {
+		if user.Uname != uname {
+			continue
+		}
+
+		if user.Port != port {
+			return false
+		}
+
+		hpswd := []byte(user.Pswd)
+		err := bcrypt.CompareHashAndPassword(hpswd, pwbyt)
+
+		if err != nil {
+			return false
+		}
+
+		return true
+	}
+
 	return false
 }
 
@@ -216,6 +243,8 @@ func main() {
 	}
 
 	fmt.Println("Punch server is listening at port " + port)
+
+	users = *punch.ReadUsers()
 
 	for {
 		conn, err := l.Accept()
