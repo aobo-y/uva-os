@@ -40,50 +40,41 @@ func pipe(owconn net.Conn, cliconn net.Conn) {
 
 	_, port, _ := net.SplitHostPort(owconn.LocalAddr().String())
 	connEntry := openConns[port]
-	errChn := make(chan error)
 
-	unipipe := func(from net.Conn, to net.Conn, in bool) {
-		buf := make([]byte, 1024)
+	done := make(chan error)
+	rcvChn := make(chan int)
+	sndChn := make(chan int)
 
-		for {
-			n, err := from.Read(buf)
+	go func() {
+		done <- punch.Pipe(owconn, cliconn, rcvChn, sndChn)
+	}()
 
-			if err != nil {
-				errChn <- err
-				return
-			}
-			_, err = to.Write(buf[:n])
+	select {
+	case n := <-rcvChn:
+		connEntry.Lock()
+		connEntry.bytrcv += n
+		connEntry.Unlock()
 
-			if err != nil {
-				errChn <- err
-				return
-			}
+	case n := <-sndChn:
+		connEntry.Lock()
+		connEntry.bytsnd += n
+		connEntry.Unlock()
 
-			connEntry.Lock()
-			if in {
-				connEntry.bytrcv += n
-			} else {
-				connEntry.bytsnd += n
-			}
-			connEntry.Unlock()
-		}
+	case <-done:
+		break
 	}
 
-	go unipipe(owconn, cliconn, true)
-	go unipipe(cliconn, owconn, false)
-
-	<-errChn
 	owconn.Close()
 	cliconn.Close()
 
 	fmt.Println("Close " + owconn.RemoteAddr().String() + " -> " + owconn.LocalAddr().String() + " <-->" + cliconn.LocalAddr().String() + " <- " + cliconn.RemoteAddr().String())
 }
 
-func openPort(ctrconn net.Conn, port string, uname string) {
+func listen(ctrconn net.Conn, port string, uname string) {
 	l, err := net.Listen("tcp", ":"+port)
 
 	if err != nil {
-		log.Fatal("open outward facing port error:", err)
+		log.Fatal("open outward facing port error: ", err)
 		ctrconn.Write([]byte("FAIL"))
 		ctrconn.Close()
 		return
@@ -93,7 +84,7 @@ func openPort(ctrconn net.Conn, port string, uname string) {
 
 	clilstner, err := net.Listen("tcp", ":0")
 	if err != nil {
-		log.Fatal("open punch client port error:", err)
+		log.Fatal("open punch client port error: ", err)
 		return
 	}
 
@@ -113,7 +104,7 @@ func openPort(ctrconn net.Conn, port string, uname string) {
 	for {
 		conn, err := l.Accept()
 		if err != nil {
-			log.Fatal("accept extrernal connection error:", err)
+			log.Fatal("accept extrernal connection error: ", err)
 		}
 
 		fmt.Println("Outward " + conn.RemoteAddr().String() + " -> " + conn.LocalAddr().String())
@@ -218,7 +209,7 @@ func handleClient(conn net.Conn) {
 			return
 		}
 
-		openPort(conn, tokens[3], tokens[1])
+		go openPort(conn, tokens[3], tokens[1])
 	case "LIST":
 		if len(tokens) != 1 {
 			fmt.Println("Invalid OPEN operation from " + clistr)
@@ -239,7 +230,7 @@ func main() {
 	l, err := net.Listen("tcp", ":"+port)
 
 	if err != nil {
-		log.Fatal("listen error:", err)
+		log.Fatal("listen error: ", err)
 	}
 
 	fmt.Println("Punch server is listening at port " + port)
@@ -249,7 +240,7 @@ func main() {
 	for {
 		conn, err := l.Accept()
 		if err != nil {
-			log.Fatal("accept error:", err)
+			log.Fatal("accept error: ", err)
 		}
 
 		go handleClient(conn)
