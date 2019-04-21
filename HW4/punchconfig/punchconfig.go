@@ -3,6 +3,7 @@ package main
 import (
 	"bufio"
 	"fmt"
+	"io/ioutil"
 	"os"
 	"path"
 	"strconv"
@@ -11,52 +12,49 @@ import (
 	"golang.org/x/crypto/bcrypt"
 )
 
-type user struct {
+type User struct {
 	uname string
 	psw   string
 	port  string
 }
 
-var users []user
+var home = os.Getenv("HOME")
+var dirpath = path.Join(home, ".hole_punch")
+var fpath = path.Join(dirpath, "users")
 
-func main() {
-	home := os.Getenv("HOME")
-	dirpath := path.Join(home, ".hole_punch")
-	fpath := path.Join(dirpath, "users")
+func ReadUser() *[]User {
+	var users []User
 
-	err := os.MkdirAll(dirpath, os.ModePerm)
-	if err != nil {
-		panic(err)
-	}
-
-	f, err := os.OpenFile(fpath, os.O_RDWR|os.O_APPEND|os.O_CREATE, 0760)
-	if err != nil {
-		panic(err)
-	}
-
-	defer f.Close()
-
-	stat, err := f.Stat()
-	if err != nil {
-		panic(err)
-	}
-
-	sz := stat.Size()
-	if sz != 0 {
-		buf := make([]byte, sz)
-		_, err = f.Read(buf)
-		if err != nil {
-			panic(err)
-		}
-
-		for _, line := range strings.Split(string(buf), "\n") {
+	content, err := ioutil.ReadFile(fpath)
+	if err == nil && len(content) > 0 {
+		for _, line := range strings.Split(string(content), "\n") {
 			if line == "" {
 				continue
 			}
 			tokens := strings.Split(line, " ")
-			users = append(users, user{tokens[0], tokens[1], tokens[2]})
+			users = append(users, User{tokens[0], tokens[1], tokens[2]})
 		}
 	}
+
+	return &users
+}
+
+func openConfig() (*os.File, error) {
+	err := os.MkdirAll(dirpath, os.ModePerm)
+	if err != nil {
+		return nil, err
+	}
+
+	f, err := os.OpenFile(fpath, os.O_RDWR|os.O_APPEND|os.O_CREATE, 0760)
+	if err != nil {
+		return nil, err
+	}
+
+	return f, nil
+}
+
+func main() {
+	users := *ReadUser()
 
 	var uname, pwd, port string
 	scanner := bufio.NewScanner(os.Stdin)
@@ -123,7 +121,7 @@ func main() {
 			continue
 		}
 
-		_, err = strconv.Atoi(port)
+		_, err := strconv.Atoi(port)
 
 		if err != nil {
 			fmt.Println("Ivalid port number:")
@@ -152,6 +150,11 @@ func main() {
 	}
 
 	pwd = string(hashedPwd)
+
+	f, err := openConfig()
+	if err != nil {
+		panic(err)
+	}
 
 	f.WriteString(uname + " " + pwd + " " + port + "\n")
 	fmt.Println("Success!")
