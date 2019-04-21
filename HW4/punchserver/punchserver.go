@@ -26,7 +26,7 @@ type connection struct {
 	bytsnd       int    // bytes sent
 }
 
-var openConns map[string]*connection // maps of open connections
+var openConns = make(map[string]*connection) // maps of open connections
 
 var optSplit = regexp.MustCompile(`\s+`)
 
@@ -153,7 +153,7 @@ func list() {
 
 }
 
-func verify(uname string, pw string, port string) bool {
+func verify(uname string, pw string, port string) error {
 	pwbyt := []byte(pw)
 
 	for _, user := range users {
@@ -162,20 +162,20 @@ func verify(uname string, pw string, port string) bool {
 		}
 
 		if user.Port != port {
-			return false
+			return fmt.Errorf("Invalid port")
 		}
 
 		hpswd := []byte(user.Pswd)
 		err := bcrypt.CompareHashAndPassword(hpswd, pwbyt)
 
 		if err != nil {
-			return false
+			return fmt.Errorf("Invalid password")
 		}
 
-		return true
+		return nil
 	}
 
-	return false
+	return fmt.Errorf("Invalid username")
 }
 
 func handleClient(conn net.Conn) {
@@ -192,8 +192,6 @@ func handleClient(conn net.Conn) {
 
 	cmd := string(buf[0:nb])
 
-	fmt.Println("Received command from " + clistr + ": " + cmd)
-
 	tokens := optSplit.Split(cmd, -1)
 
 	switch tokens[0] {
@@ -203,13 +201,19 @@ func handleClient(conn net.Conn) {
 			return
 		}
 
-		if !verify(tokens[1], tokens[2], tokens[3]) {
+		fmt.Println("Received open command from "+clistr+":", tokens[1], tokens[3])
+
+		err = verify(tokens[1], tokens[2], tokens[3])
+		if err != nil {
+			fmt.Println("Auth punch client "+clistr+" error:", err)
+
 			conn.Write([]byte("FAIL"))
 			conn.Close()
 			return
 		}
 
 		go listen(conn, tokens[3], tokens[1])
+
 	case "LIST":
 		if len(tokens) != 1 {
 			fmt.Println("Invalid OPEN operation from " + clistr)
@@ -217,6 +221,9 @@ func handleClient(conn net.Conn) {
 		}
 
 		list()
+
+	default:
+		conn.Close()
 	}
 }
 
