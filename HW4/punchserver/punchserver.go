@@ -28,15 +28,15 @@ type connection struct {
 
 var openConns = make(map[string]*connection) // maps of open connections
 
-var optSplit = regexp.MustCompile(`\s+`)
+var optSplit = regexp.MustCompile(`\s+`) // regex to split punch client input
 
-/*
-	Open a
-	owconn: outward connection
-	ctrconn: control connection
-*/
+// Pipe streams between the outward connection and punch client connection
+// On-the-fly update the bytes received & sent
+// Close both connections when done
 func pipe(owconn net.Conn, cliconn net.Conn) {
-	fmt.Println("Pipe " + owconn.RemoteAddr().String() + " -> " + owconn.LocalAddr().String() + " <--> " + cliconn.LocalAddr().String() + " <- " + cliconn.RemoteAddr().String())
+	pipeLog := fmt.Sprintf("%v -> %v <--> %v <- %v", owconn.RemoteAddr().String(), owconn.LocalAddr().String(), cliconn.LocalAddr().String(), cliconn.RemoteAddr().String())
+
+	fmt.Println("Pipe " + pipeLog)
 
 	_, port, _ := net.SplitHostPort(owconn.LocalAddr().String())
 	connEntry := openConns[port]
@@ -74,9 +74,14 @@ func pipe(owconn net.Conn, cliconn net.Conn) {
 	owconn.Close()
 	cliconn.Close()
 
-	fmt.Println("Close " + owconn.RemoteAddr().String() + " -> " + owconn.LocalAddr().String() + " <--> " + cliconn.LocalAddr().String() + " <- " + cliconn.RemoteAddr().String())
+	fmt.Println("Close " + pipeLog)
 }
 
+// Open the specified outward facing port & Open a client facing port
+// For each incoming conn, send nounce to punch client through control conn
+// Wait for a client conn with the nounce for at most 10s
+// If timeout, close the opened ports and end
+// Else, pipe the outward conn & client conn
 func listen(ctrconn net.Conn, port string, uname string) {
 	l, err := net.Listen("tcp", ":"+port)
 
@@ -158,6 +163,8 @@ func listen(ctrconn net.Conn, port string, uname string) {
 	}
 }
 
+// Write the formatted realtime info of the openned connections
+// to punch client through the control conn
 func list(ctrconn net.Conn) {
 	var res string
 
@@ -184,6 +191,9 @@ func list(ctrconn net.Conn) {
 	ctrconn.Write([]byte(res))
 }
 
+// Verify the username, password and port in OPEN cmd
+// The username, password, and port should match the existing config
+// The port should have not been openned by other punch client
 func verify(uname string, pw string, port string) error {
 	pwbyt := []byte(pw)
 
@@ -203,12 +213,19 @@ func verify(uname string, pw string, port string) error {
 			return fmt.Errorf("Invalid password")
 		}
 
+		if _, in := openConns[port]; in {
+			return fmt.Errorf("Port has openned")
+		}
+
 		return nil
 	}
 
 	return fmt.Errorf("Invalid username")
 }
 
+// Handle the incoming punch client connection
+// Wait for only one the client request, either OPEN or  LIST
+// Close the client conn in the end
 func handleClient(conn net.Conn) {
 	clistr := conn.RemoteAddr().String()
 	fmt.Println("Received connection from " + clistr)
@@ -261,6 +278,8 @@ func handleClient(conn net.Conn) {
 	conn.Close()
 }
 
+// Start the punch server
+// Support an optional argument for the port to listen to
 func main() {
 	port := "9999"
 
