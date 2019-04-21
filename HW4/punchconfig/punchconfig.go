@@ -3,49 +3,22 @@ package main
 import (
 	"bufio"
 	"fmt"
-	"io/ioutil"
 	"os"
-	"path"
 	"strconv"
 	"strings"
+
+	"punch"
 
 	"golang.org/x/crypto/bcrypt"
 )
 
-type User struct {
-	uname string
-	psw   string
-	port  string
-}
-
-var home = os.Getenv("HOME")
-var dirpath = path.Join(home, ".hole_punch")
-var fpath = path.Join(dirpath, "users")
-
-func ReadUser() *[]User {
-	var users []User
-
-	content, err := ioutil.ReadFile(fpath)
-	if err == nil && len(content) > 0 {
-		for _, line := range strings.Split(string(content), "\n") {
-			if line == "" {
-				continue
-			}
-			tokens := strings.Split(line, " ")
-			users = append(users, User{tokens[0], tokens[1], tokens[2]})
-		}
-	}
-
-	return &users
-}
-
 func openConfig() (*os.File, error) {
-	err := os.MkdirAll(dirpath, os.ModePerm)
+	err := os.MkdirAll(punch.Dirpath, os.ModePerm)
 	if err != nil {
 		return nil, err
 	}
 
-	f, err := os.OpenFile(fpath, os.O_RDWR|os.O_APPEND|os.O_CREATE, 0760)
+	f, err := os.OpenFile(punch.Fpath, os.O_RDWR|os.O_APPEND|os.O_CREATE, 0760)
 	if err != nil {
 		return nil, err
 	}
@@ -54,9 +27,9 @@ func openConfig() (*os.File, error) {
 }
 
 func main() {
-	users := *ReadUser()
+	users := *punch.ReadUsers()
 
-	var uname, pwd, port string
+	var uname, pswd, port string
 	scanner := bufio.NewScanner(os.Stdin)
 
 	fmt.Println("Plese input username:")
@@ -77,7 +50,7 @@ func main() {
 
 		dup := false
 		for i := 0; i < len(users); i++ {
-			if users[i].uname == uname {
+			if users[i].Uname == uname {
 				dup = true
 				break
 			}
@@ -94,15 +67,15 @@ func main() {
 	fmt.Println("Plese input password:")
 	for {
 		scanner.Scan()
-		pwd = scanner.Text()
-		pwd = strings.TrimSpace(pwd)
+		pswd = scanner.Text()
+		pswd = strings.TrimSpace(pswd)
 
-		if pwd == "" {
+		if pswd == "" {
 			fmt.Println("Password cannot be empty:")
 			continue
 		}
 
-		if strings.Contains(pwd, " ") {
+		if strings.Contains(pswd, " ") {
 			fmt.Println("Password cannot contain space:")
 			continue
 		}
@@ -130,7 +103,7 @@ func main() {
 
 		dup := false
 		for i := 0; i < len(users); i++ {
-			if users[i].port == port {
+			if users[i].Port == port {
 				dup = true
 				break
 			}
@@ -144,18 +117,18 @@ func main() {
 		break
 	}
 
-	hashedPwd, err := bcrypt.GenerateFromPassword([]byte(pwd), bcrypt.DefaultCost)
+	hashedpswd, err := bcrypt.GenerateFromPassword([]byte(pswd), bcrypt.DefaultCost)
 	if err != nil {
 		panic(err)
 	}
 
-	pwd = string(hashedPwd)
+	pswd = string(hashedpswd)
 
 	f, err := openConfig()
 	if err != nil {
 		panic(err)
 	}
 
-	f.WriteString(uname + " " + pwd + " " + port + "\n")
+	f.WriteString(uname + " " + pswd + " " + port + "\n")
 	fmt.Println("Success!")
 }
