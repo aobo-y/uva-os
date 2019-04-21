@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"log"
 	"net"
+	"os"
 )
 
 func reader(c net.Conn) {
@@ -21,6 +22,10 @@ func reader(c net.Conn) {
 
 func main() {
 	seraddr := "0.0.0.0:8888"
+
+	if len(os.Args) > 1 {
+		seraddr = os.Args[1]
+	}
 
 	conn, err := net.Dial("tcp", seraddr)
 	if err != nil {

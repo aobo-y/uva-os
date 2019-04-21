@@ -12,14 +12,14 @@ import (
 var port string
 
 func pipe(svrconn net.Conn, lclconn net.Conn) {
-	fmt.Println("Pipe " + svrconn.RemoteAddr().String() + " <- " + svrconn.LocalAddr().String() + " <-->" + lclconn.LocalAddr().String() + " -> " + lclconn.RemoteAddr().String())
+	fmt.Println("Pipe " + svrconn.RemoteAddr().String() + " <- " + svrconn.LocalAddr().String() + " <--> " + lclconn.LocalAddr().String() + " -> " + lclconn.RemoteAddr().String())
 
 	punch.Pipe(svrconn, lclconn, nil, nil)
 
 	svrconn.Close()
 	lclconn.Close()
 
-	fmt.Println("Close " + svrconn.RemoteAddr().String() + " <- " + svrconn.LocalAddr().String() + " <-->" + lclconn.LocalAddr().String() + " -> " + lclconn.RemoteAddr().String())
+	fmt.Println("Close " + svrconn.RemoteAddr().String() + " <- " + svrconn.LocalAddr().String() + " <--> " + lclconn.LocalAddr().String() + " -> " + lclconn.RemoteAddr().String())
 }
 
 func connect(svrIp string, svrPort string, nounce string) {
@@ -40,7 +40,7 @@ func connect(svrIp string, svrPort string, nounce string) {
 
 	lclconn, err := net.Dial("tcp", ":"+port)
 	if err != nil {
-		log.Fatal("Spin conn to punch server error: ", err)
+		log.Fatal("Conn to local service error: ", err)
 		return
 	}
 
@@ -92,8 +92,11 @@ func main() {
 		}
 
 		tokens := strings.Split(msg, " ")
-		if len(tokens) == 3 && tokens[0] == "ctrCONNECT" {
+		if len(tokens) == 3 && tokens[0] == "CONNECT" {
+			fmt.Println("Connect invite from punch server:", tokens[1])
 			go connect(srvIp, tokens[1], tokens[2])
+		} else {
+			fmt.Println("Invalid message from punch server:", msg)
 		}
 	}
 }

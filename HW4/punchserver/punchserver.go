@@ -36,7 +36,7 @@ var optSplit = regexp.MustCompile(`\s+`)
 	ctrconn: control connection
 */
 func pipe(owconn net.Conn, cliconn net.Conn) {
-	fmt.Println("Pipe " + owconn.RemoteAddr().String() + " -> " + owconn.LocalAddr().String() + " <-->" + cliconn.LocalAddr().String() + " <- " + cliconn.RemoteAddr().String())
+	fmt.Println("Pipe " + owconn.RemoteAddr().String() + " -> " + owconn.LocalAddr().String() + " <--> " + cliconn.LocalAddr().String() + " <- " + cliconn.RemoteAddr().String())
 
 	_, port, _ := net.SplitHostPort(owconn.LocalAddr().String())
 	connEntry := openConns[port]
@@ -67,7 +67,7 @@ func pipe(owconn net.Conn, cliconn net.Conn) {
 	owconn.Close()
 	cliconn.Close()
 
-	fmt.Println("Close " + owconn.RemoteAddr().String() + " -> " + owconn.LocalAddr().String() + " <-->" + cliconn.LocalAddr().String() + " <- " + cliconn.RemoteAddr().String())
+	fmt.Println("Close " + owconn.RemoteAddr().String() + " -> " + owconn.LocalAddr().String() + " <--> " + cliconn.LocalAddr().String() + " <- " + cliconn.RemoteAddr().String())
 }
 
 func listen(ctrconn net.Conn, port string, uname string) {
@@ -81,6 +81,7 @@ func listen(ctrconn net.Conn, port string, uname string) {
 	}
 
 	defer l.Close()
+	fmt.Println("Listening to outward facing port:", port)
 
 	clilstner, err := net.Listen("tcp", ":0")
 	if err != nil {
@@ -91,6 +92,7 @@ func listen(ctrconn net.Conn, port string, uname string) {
 	defer clilstner.Close()
 
 	_, cliport, _ := net.SplitHostPort(clilstner.Addr().String())
+	fmt.Println("Listening to client facing port:", uname, cliport)
 
 	cliip, _, _ := net.SplitHostPort(ctrconn.RemoteAddr().String())
 	openConns[port] = &connection{
@@ -123,11 +125,11 @@ func listen(ctrconn net.Conn, port string, uname string) {
 			}
 
 			buf := make([]byte, 512)
-			cliconn.Read(buf)
-			clinounce := string(buf)
+			n, _ := cliconn.Read(buf)
+			clinounce := string(buf[:n])
 
 			if clinounce != nounce {
-				errChn <- fmt.Errorf("Punch client connection fail, received: %v", clinounce)
+				errChn <- fmt.Errorf("Punch client connection fail: unmatched nounce")
 				return
 			}
 
@@ -146,6 +148,8 @@ func listen(ctrconn net.Conn, port string, uname string) {
 			fmt.Println("Punch client connection timeout")
 			return
 		}
+
+		<-time.After(10 * time.Second)
 	}
 }
 
@@ -212,7 +216,7 @@ func handleClient(conn net.Conn) {
 			return
 		}
 
-		go listen(conn, tokens[3], tokens[1])
+		listen(conn, tokens[3], tokens[1])
 
 	case "LIST":
 		if len(tokens) != 1 {
@@ -223,8 +227,10 @@ func handleClient(conn net.Conn) {
 		list()
 
 	default:
-		conn.Close()
+		fmt.Println("Invalid operation from " + clistr)
 	}
+
+	conn.Close()
 }
 
 func main() {
