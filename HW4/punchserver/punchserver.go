@@ -209,7 +209,7 @@ func handleClient(conn net.Conn) {
 			return
 		}
 
-		go openPort(conn, tokens[3], tokens[1])
+		go listen(conn, tokens[3], tokens[1])
 	case "LIST":
 		if len(tokens) != 1 {
 			fmt.Println("Invalid OPEN operation from " + clistr)
