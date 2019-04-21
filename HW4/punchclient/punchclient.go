@@ -29,7 +29,6 @@ func connect(svrIp string, svrPort string, nounce string) {
 		return
 	}
 
-	defer conn.Close()
 	fmt.Println(conn.LocalAddr().String() + " -> " + conn.RemoteAddr().String())
 
 	_, err = conn.Write([]byte(nounce))
@@ -38,7 +37,8 @@ func connect(svrIp string, svrPort string, nounce string) {
 		return
 	}
 
-	lclconn, err := net.Dial("tcp", ":"+port)
+	// lclconn, err := net.Dial("tcp", ":"+port)
+	lclconn, err := net.Dial("tcp", ":8888")
 	if err != nil {
 		log.Fatal("Conn to local service error: ", err)
 		return

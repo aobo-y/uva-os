@@ -49,19 +49,26 @@ func pipe(owconn net.Conn, cliconn net.Conn) {
 		done <- punch.Pipe(owconn, cliconn, rcvChn, sndChn)
 	}()
 
-	select {
-	case n := <-rcvChn:
-		connEntry.Lock()
-		connEntry.bytrcv += n
-		connEntry.Unlock()
+	for {
+		end := false
+		select {
+		case n := <-rcvChn:
+			connEntry.Lock()
+			connEntry.bytrcv += n
+			connEntry.Unlock()
 
-	case n := <-sndChn:
-		connEntry.Lock()
-		connEntry.bytsnd += n
-		connEntry.Unlock()
+		case n := <-sndChn:
+			connEntry.Lock()
+			connEntry.bytsnd += n
+			connEntry.Unlock()
 
-	case <-done:
-		break
+		case <-done:
+			end = true
+		}
+
+		if end {
+			break
+		}
 	}
 
 	owconn.Close()
@@ -148,8 +155,6 @@ func listen(ctrconn net.Conn, port string, uname string) {
 			fmt.Println("Punch client connection timeout")
 			return
 		}
-
-		<-time.After(10 * time.Second)
 	}
 }
 
