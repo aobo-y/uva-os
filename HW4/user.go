@@ -1,3 +1,4 @@
+// Utils to get user config
 package punch
 
 import (
@@ -17,6 +18,7 @@ var home = os.Getenv("HOME")
 var Dirpath = path.Join(home, ".hole_punch")
 var Fpath = path.Join(Dirpath, "users")
 
+// Read the config and return an array of users
 func ReadUsers() *[]User {
 	var users []User
 
