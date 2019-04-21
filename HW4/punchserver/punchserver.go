@@ -158,8 +158,30 @@ func listen(ctrconn net.Conn, port string, uname string) {
 	}
 }
 
-func list() {
+func list(ctrconn net.Conn) {
+	var res string
 
+	for _, cEty := range openConns {
+		line := fmt.Sprintf("%v %v %v %v", cEty.uname, cEty.owport, cEty.cliport, cEty.cliip)
+
+		for _, byt := range []int{cEty.bytrcv, cEty.bytsnd} {
+			val := float32(byt)
+			var unit string
+
+			for _, unit = range []string{"B", "KB", "MB", "GB"} {
+				if val < 1024 {
+					break
+				}
+				val /= 1024
+			}
+
+			line += fmt.Sprintf(" %.1f%v", val, unit)
+		}
+
+		res += line + "\n"
+	}
+
+	ctrconn.Write([]byte(res))
 }
 
 func verify(uname string, pw string, port string) error {
@@ -210,7 +232,7 @@ func handleClient(conn net.Conn) {
 			return
 		}
 
-		fmt.Println("Received open command from "+clistr+":", tokens[1], tokens[3])
+		fmt.Println("Received OPEN command from "+clistr+":", tokens[1], tokens[3])
 
 		err = verify(tokens[1], tokens[2], tokens[3])
 		if err != nil {
@@ -225,11 +247,12 @@ func handleClient(conn net.Conn) {
 
 	case "LIST":
 		if len(tokens) != 1 {
-			fmt.Println("Invalid OPEN operation from " + clistr)
+			fmt.Println("Invalid LIST operation from " + clistr)
 			return
 		}
 
-		list()
+		fmt.Println("Received LIST command from " + clistr)
+		list(conn)
 
 	default:
 		fmt.Println("Invalid operation from " + clistr)
