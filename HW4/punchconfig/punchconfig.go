@@ -7,6 +7,8 @@ import (
 	"path"
 	"strconv"
 	"strings"
+
+	"golang.org/x/crypto/bcrypt"
 )
 
 type user struct {
@@ -27,7 +29,7 @@ func main() {
 		panic(err)
 	}
 
-	f, err := os.OpenFile(fpath, os.O_RDWR|os.O_APPEND|os.O_CREATE, 0660)
+	f, err := os.OpenFile(fpath, os.O_RDWR|os.O_APPEND|os.O_CREATE, 0760)
 	if err != nil {
 		panic(err)
 	}
@@ -143,6 +145,13 @@ func main() {
 
 		break
 	}
+
+	hashedPwd, err := bcrypt.GenerateFromPassword([]byte(pwd), bcrypt.DefaultCost)
+	if err != nil {
+		panic(err)
+	}
+
+	pwd = string(hashedPwd)
 
 	f.WriteString(uname + " " + pwd + " " + port + "\n")
 	fmt.Println("Success!")
