@@ -10,7 +10,7 @@ import (
 	"strings"
 )
 
-var port string // service port, one client only be one service's proxy
+var lclport string // local service port
 
 // Pipe streams between the punch server connection and service connection
 // Close both connections when done
@@ -31,7 +31,7 @@ func pipe(svrconn net.Conn, lclconn net.Conn) {
 // Spin a new connection to the punch server with the nounce
 // Also create a new connection to the backend service
 // Pipe the punch server conn & service conn
-func connect(svrIp string, svrPort string, nounce string) {
+func connect(svrIp, svrPort, nounce, lclport string) {
 	conn, err := net.Dial("tcp", svrIp+":"+svrPort)
 	if err != nil {
 		log.Fatal("Spin conn to punch server error: ", err)
@@ -46,8 +46,7 @@ func connect(svrIp string, svrPort string, nounce string) {
 		return
 	}
 
-	// lclconn, err := net.Dial("tcp", ":"+port)
-	lclconn, err := net.Dial("tcp", ":8888")
+	lclconn, err := net.Dial("tcp", ":"+lclport)
 	if err != nil {
 		log.Fatal("Conn to local service error: ", err)
 		return
@@ -59,8 +58,8 @@ func connect(svrIp string, svrPort string, nounce string) {
 // Send request to the punch server to open a port through control conn
 // Then wait for connection invites from punch server
 // Spin a new connection to each invite
-func open(ctrconn net.Conn, port, srvIp, username, password string) {
-	opencmd := "OPEN " + username + " " + password + " " + port
+func open(ctrconn net.Conn, srvIp, username, password, rmtport, lclport string) {
+	opencmd := "OPEN " + username + " " + password + " " + rmtport
 
 	_, err := ctrconn.Write([]byte(opencmd))
 	if err != nil {
@@ -83,7 +82,7 @@ func open(ctrconn net.Conn, port, srvIp, username, password string) {
 		tokens := strings.Split(msg, " ")
 		if len(tokens) == 3 && tokens[0] == "CONNECT" {
 			fmt.Println("Connect invite from punch server:", tokens[1])
-			go connect(srvIp, tokens[1], tokens[2])
+			go connect(srvIp, tokens[1], tokens[2], lclport)
 		} else {
 			fmt.Println("Invalid message from punch server:", msg)
 		}
@@ -115,10 +114,10 @@ func list(ctrconn net.Conn) {
 func main() {
 	var ps string
 
-	if len(os.Args) == 5 || (len(os.Args) == 3 && os.Args[1] == "LIST") {
+	if len(os.Args) == 6 || (len(os.Args) == 3 && os.Args[1] == "LIST") {
 		ps = os.Args[2]
 	} else {
-		log.Fatal("Invalid arguments: [port] [ps addr] [username] [password] or LIST [ps addr]")
+		log.Fatal("Invalid arguments: [local port] [ps addr] [username] [password] [remote port] or LIST [ps addr]")
 		return
 	}
 
@@ -132,16 +131,16 @@ func main() {
 	defer ctrconn.Close()
 	fmt.Println("Connected to punch server: " + ps)
 
-	if len(os.Args) == 5 {
-		port = os.Args[1]
+	if len(os.Args) == 6 {
+		lclport := os.Args[1]
 
-		port = os.Args[1]
 		username := os.Args[3]
 		password := os.Args[4]
+		rmtport := os.Args[5]
 
 		srvIp, _, _ := net.SplitHostPort(ps)
 
-		open(ctrconn, port, srvIp, username, password)
+		open(ctrconn, srvIp, username, password, rmtport, lclport)
 	} else if len(os.Args) == 3 {
 		list(ctrconn)
 	}
