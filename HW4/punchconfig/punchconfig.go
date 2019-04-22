@@ -12,6 +12,7 @@ import (
 	"golang.org/x/crypto/bcrypt"
 )
 
+// Open the config file and return the file instance
 func openConfig() (*os.File, error) {
 	err := os.MkdirAll(punch.Dirpath, os.ModePerm)
 	if err != nil {
@@ -26,6 +27,7 @@ func openConfig() (*os.File, error) {
 	return f, nil
 }
 
+// Add new record into configuration
 func main() {
 	users := *punch.ReadUsers()
 

@@ -10,19 +10,27 @@ import (
 	"strings"
 )
 
-var port string
+var port string // service port, one client only be one service's proxy
 
+// Pipe streams between the punch server connection and service connection
+// Close both connections when done
 func pipe(svrconn net.Conn, lclconn net.Conn) {
-	fmt.Println("Pipe " + svrconn.RemoteAddr().String() + " <- " + svrconn.LocalAddr().String() + " <--> " + lclconn.LocalAddr().String() + " -> " + lclconn.RemoteAddr().String())
+	pipeLog := fmt.Sprintf("%v <- %v <--> %v -> %v", svrconn.RemoteAddr().String(), svrconn.LocalAddr().String(), lclconn.LocalAddr().String(), lclconn.RemoteAddr().String())
 
+	fmt.Println("Pipe " + pipeLog)
+
+	// omit channels since client doesn't need to monitor data streamed
 	punch.Pipe(svrconn, lclconn, nil, nil)
 
 	svrconn.Close()
 	lclconn.Close()
 
-	fmt.Println("Close " + svrconn.RemoteAddr().String() + " <- " + svrconn.LocalAddr().String() + " <--> " + lclconn.LocalAddr().String() + " -> " + lclconn.RemoteAddr().String())
+	fmt.Println("Close " + pipeLog)
 }
 
+// Spin a new connection to the punch server with the nounce
+// Also create a new connection to the backend service
+// Pipe the punch server conn & service conn
 func connect(svrIp string, svrPort string, nounce string) {
 	conn, err := net.Dial("tcp", svrIp+":"+svrPort)
 	if err != nil {
@@ -48,6 +56,9 @@ func connect(svrIp string, svrPort string, nounce string) {
 	go pipe(conn, lclconn)
 }
 
+// Send request to the punch server to open a port through control conn
+// Then wait for connection invites from punch server
+// Spin a new connection to each invite
 func open(ctrconn net.Conn, port, srvIp, username, password string) {
 	opencmd := "OPEN " + username + " " + password + " " + port
 
@@ -79,6 +90,8 @@ func open(ctrconn net.Conn, port, srvIp, username, password string) {
 	}
 }
 
+// Send List request to the punch server through control conn
+// Print the server response
 func list(ctrconn net.Conn) {
 	_, err := ctrconn.Write([]byte("LIST"))
 
@@ -95,6 +108,10 @@ func list(ctrconn net.Conn) {
 	fmt.Println(string(buf))
 }
 
+// Start the punch client and connect to punch server
+// Send OPEN or LIST request to punch server
+// OPEN port with args of service/outward port, punch server addr, username & password
+// LIST with args of punch server addr
 func main() {
 	var ps string
 
