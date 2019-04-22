@@ -1,4 +1,5 @@
-package main
+// utils to gen random string of given length
+package punch
 
 import (
 	"math/rand"
@@ -11,6 +12,7 @@ const charset = "abcdefghijklmnopqrstuvwxyz" +
 var seededRand *rand.Rand = rand.New(
 	rand.NewSource(time.Now().UnixNano()))
 
+// return a random string fo the given length and the given set
 func stringWithCharset(length int, charset string) string {
 	b := make([]byte, length)
 	for i := range b {
@@ -19,6 +21,7 @@ func stringWithCharset(length int, charset string) string {
 	return string(b)
 }
 
-func randString(length int) string {
+// return a random string fo the given length with a-zA-Z0-9
+func RandString(length int) string {
 	return stringWithCharset(length, charset)
 }

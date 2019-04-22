@@ -168,7 +168,7 @@ func listen(ctrconn net.Conn, port string, uname string) {
 
 			fmt.Println("Outward " + conn.RemoteAddr().String() + " -> " + conn.LocalAddr().String())
 
-			nounce = randString(256)
+			nounce = punch.RandString(256)
 			_, err = ctrconn.Write([]byte("CONNECT " + cliport + " " + nounce))
 			if err != nil {
 				// control conn has closed in the client side
