@@ -115,52 +115,85 @@ func listen(ctrconn net.Conn, port string, uname string) {
 	}
 	defer delete(openConns, port)
 
-	for {
-		conn, err := l.Accept()
-		if err != nil {
-			log.Fatal("accept extrernal connection error: ", err)
-		}
+	cliconnChn := make(chan net.Conn) // client conn channel
+	done := make(chan error)
 
-		fmt.Println("Outward " + conn.RemoteAddr().String() + " -> " + conn.LocalAddr().String())
+	var nounce string
 
-		nounce := randString(256)
-		ctrconn.Write([]byte("CONNECT " + cliport + " " + nounce))
-
-		// thread to wait for connection with correct nounce
-		connChn := make(chan net.Conn)
-		errChn := make(chan error)
-		go func() {
+	// gorountine to wait for connection with correct nounce
+	go func() {
+		for {
 			cliconn, err := clilstner.Accept()
 			if err != nil {
-				errChn <- fmt.Errorf("accept punch client connection error: %v", err)
+				done <- fmt.Errorf("accept punch client connection error: %v", err)
 				return
 			}
 
 			buf := make([]byte, 512)
-			n, _ := cliconn.Read(buf)
-			clinounce := string(buf[:n])
-
-			if clinounce != nounce {
-				errChn <- fmt.Errorf("Punch client connection fail: unmatched nounce")
+			n, err := cliconn.Read(buf)
+			if err != nil {
+				done <- fmt.Errorf("read punch client connection error: %v", err)
 				return
 			}
 
-			connChn <- cliconn
-		}()
+			clinounce := string(buf[:n])
 
-		// timeout after 10s
-		select {
-		case cliconn := <-connChn:
-			fmt.Println("Client " + cliconn.RemoteAddr().String() + " -> " + cliconn.LocalAddr().String())
-			go pipe(conn, cliconn)
-		case err = <-errChn:
-			fmt.Println(err)
-			return
-		case <-time.After(10 * time.Second):
-			fmt.Println("Punch client connection timeout")
-			return
+			if clinounce == nounce {
+				cliconnChn <- cliconn
+			}
 		}
-	}
+	}()
+
+	// gorountine to monitor if the control connection is available
+	// end the client handling if lose the control conn
+	go func() {
+		for {
+			buf := make([]byte, 256)
+			if _, err := ctrconn.Read(buf); err != nil {
+				done <- fmt.Errorf("Control connection closed")
+				return
+			}
+		}
+	}()
+
+	// gorountine to wait for outward connections & send invites
+	// then wait for client connection within 10s
+	go func() {
+		for {
+			conn, err := l.Accept()
+			if err != nil {
+				done <- err
+				return
+			}
+
+			fmt.Println("Outward " + conn.RemoteAddr().String() + " -> " + conn.LocalAddr().String())
+
+			nounce = randString(256)
+			_, err = ctrconn.Write([]byte("CONNECT " + cliport + " " + nounce))
+			if err != nil {
+				// control conn has closed in the client side
+				done <- fmt.Errorf("Write control connection error")
+				return
+			}
+
+			// timeout after 10s
+			select {
+			case cliconn, ok := <-cliconnChn:
+				if !ok {
+					return
+				}
+				fmt.Println("Client " + cliconn.RemoteAddr().String() + " -> " + cliconn.LocalAddr().String())
+				go pipe(conn, cliconn)
+			case <-time.After(10 * time.Second):
+				done <- fmt.Errorf("Punch client connection timeout")
+				return
+			}
+		}
+	}()
+
+	err = <-done
+	close(cliconnChn)
+	fmt.Println("End open port for "+uname+":", err)
 }
 
 // Write the formatted realtime info of the openned connections
@@ -238,8 +271,7 @@ func handleClient(conn net.Conn) {
 		return
 	}
 
-	cmd := string(buf[0:nb])
-
+	cmd := string(buf[:nb])
 	tokens := optSplit.Split(cmd, -1)
 
 	switch tokens[0] {

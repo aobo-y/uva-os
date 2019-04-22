@@ -71,7 +71,7 @@ func open(ctrconn net.Conn, port, srvIp, username, password string) {
 		buf := make([]byte, 1024)
 		n, err := ctrconn.Read(buf[:])
 		if err != nil {
-			panic(err)
+			panic("Punch server control connection closed")
 		}
 
 		msg := string(buf[0:n])
