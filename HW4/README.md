@@ -1,5 +1,6 @@
 # Machine Problem 4 - Hole Punch
 
+<img src="./arch.png">
 This project is a Hole Punch service implemented in Go, whose lightweight goroutine feature is a good fit for the multi-threading requirement of this work. The Hole Punch aims to help unaccessible local services communicate with external clients.
 
 The Hole Punch includes three parts: server, client, and config. The public accessible punch server receives external connections for the actual services and matches these connections with the received punch client connections initiated by the punch client running in the local as well as the actual service. The punch client initiates a pair of connections to the punch server and the actual service respectively for every incoming connection to the punch server and exchange data between the pair. The config is a command-line interface to register punch client user accounts.

@@ -1,0 +1,33 @@
+digraph Arch {
+  rankdir=LR;
+
+  app1[shape="box", label="App"]
+  app2[shape="box", label="App"]
+  app3[shape="box", label="App"]
+
+
+  ps[shape="box", label="Punch Server"];
+
+  app1 -> ps
+  app2 -> ps
+  app3 -> ps
+
+  subgraph cluster_n_1 {
+    label = "Local Net";
+
+    pc_1[shape="box", label="Punch Client"];
+    pc_2[shape="box", label="Punch Client"];
+
+    s_1[shape="box", label="Local Service"];
+    s_2[shape="box", label="Local Service"];
+
+    pc_1 -> s_1;
+    pc_2 -> s_2;
+    pc_2 -> s_2;
+  }
+
+  ps -> pc_1 [dir="back"]
+  ps -> pc_2 [dir="back"]
+
+
+}
