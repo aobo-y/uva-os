@@ -7,6 +7,12 @@ The Hole Punch includes three parts: server, client, and config. The public acce
 
 ## Usage
 
+Building the executables form the source requires Go of at least 1.12.4.
+
+```
+make
+```
+
 The punch server should run in a server with available public IP and given the control port to listen for punch clients.
 
 ```
