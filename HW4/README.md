@@ -7,7 +7,7 @@ The Hole Punch includes three parts: server, client, and config. The public acce
 
 ## Usage
 
-Building the executables form the source requires Go of at least 1.12.4.
+Building the executables from the source requires Go of at least 1.12.4.
 
 ```
 make
