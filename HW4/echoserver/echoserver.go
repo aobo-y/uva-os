@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"log"
 	"net"
+	"os"
 )
 
 func echoServer(c net.Conn) {
@@ -31,6 +32,10 @@ func echoServer(c net.Conn) {
 
 func main() {
 	port := "8888"
+
+	if len(os.Args) > 1 {
+		port = os.Args[1]
+	}
 
 	l, err := net.Listen("tcp", ":"+port)
 
